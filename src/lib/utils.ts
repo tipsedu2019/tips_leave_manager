@@ -24,7 +24,7 @@ export function getLeaveTypeLabel(type: string) {
     case "SICK":
       return "병가"
     case "SPECIAL":
-      return "특별휴가"
+      return "경조사"
     case "COMPENSATORY":
       return "대체휴일"
     default:
@@ -35,7 +35,7 @@ export function getLeaveTypeLabel(type: string) {
 export function getStatusLabel(status: string) {
   switch (status) {
     case "PENDING":
-      return "대기 중"
+      return "승인 대기 중"
     case "APPROVED":
       return "승인됨"
     case "REJECTED":

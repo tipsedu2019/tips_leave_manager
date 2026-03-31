@@ -11,7 +11,6 @@ import {
   deleteField,
   doc,
   getDoc,
-  increment,
   onSnapshot,
   orderBy,
   query,
@@ -29,10 +28,11 @@ import { calculateAnnualLeave, getLeaveTypeLabel } from "./lib/utils"
 import { normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
-  consumeAnnualLeave,
+  consumeAnnualLeaveWithAdjustment,
   getAvailableAnnualLeave,
   getCarryoverBalance,
   getNextLeaveAccrualDate,
+  restoreAnnualLeave,
   syncAnnualLeaveIfNeeded,
 } from "./lib/leave-management"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -56,6 +56,7 @@ export default function App() {
   const [requestReasons, setRequestReasons] = useState<Record<string, string>>({})
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
+  const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null)
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false)
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
@@ -68,8 +69,8 @@ export default function App() {
   const showLeaveReason = user ? canViewLeaveReason(user.role) : false
   const availableAnnualLeave = user ? getAvailableAnnualLeave(user) : 0
   const carryoverBalance = user ? getCarryoverBalance(user) : 0
-  const pendingRequests = useMemo(
-    () => allRequests.filter((request) => request.status === "PENDING"),
+  const managedRequests = useMemo(
+    () => allRequests.filter((request) => request.status !== "REJECTED"),
     [allRequests]
   )
 
@@ -105,6 +106,7 @@ export default function App() {
     details: string
   ) => {
     if (!user) return
+
     await addDoc(collection(db, "adminLogs"), {
       adminId: user.uid,
       adminName: user.displayName,
@@ -125,6 +127,8 @@ export default function App() {
         setAllUsers([])
         setAdminLogs([])
         setRequestReasons({})
+        setEditingRequest(null)
+        setIsRequestModalOpen(false)
         setLoading(false)
         return
       }
@@ -169,7 +173,12 @@ export default function App() {
       orderBy("createdAt", "desc")
     )
     return onSnapshot(personalRequestsQuery, (snapshot) => {
-      setRequests(snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() } as LeaveRequest)))
+      setRequests(
+        snapshot.docs.map((docItem) => ({
+          id: docItem.id,
+          ...docItem.data(),
+        }) as LeaveRequest)
+      )
     })
   }, [user])
 
@@ -177,37 +186,52 @@ export default function App() {
     if (!user) return
     const allRequestsQuery = query(collection(db, "leaveRequests"), orderBy("createdAt", "desc"))
     return onSnapshot(allRequestsQuery, (snapshot) => {
-      setAllRequests(snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() } as LeaveRequest)))
+      setAllRequests(
+        snapshot.docs.map((docItem) => ({
+          id: docItem.id,
+          ...docItem.data(),
+        }) as LeaveRequest)
+      )
     })
   }, [user])
 
   useEffect(() => {
-    if (!canManage) {
+    if (!user) {
       setRequestReasons({})
       return
     }
-    return onSnapshot(collection(db, "leaveRequestReasons"), (snapshot) => {
+
+    const reasonsQuery = canManage
+      ? collection(db, "leaveRequestReasons")
+      : query(collection(db, "leaveRequestReasons"), where("userId", "==", user.uid))
+
+    return onSnapshot(reasonsQuery, (snapshot) => {
       setRequestReasons(
         snapshot.docs.reduce<Record<string, string>>((accumulator, reasonDoc) => {
           const reason = (reasonDoc.data() as { reason?: string }).reason
-          if (reason) accumulator[reasonDoc.id] = reason
+          if (reason) {
+            accumulator[reasonDoc.id] = reason
+          }
           return accumulator
         }, {})
       )
     })
-  }, [canManage])
+  }, [canManage, user])
 
   useEffect(() => {
     if (!canManage) {
       setAllUsers([])
       return
     }
+
     return onSnapshot(collection(db, "users"), (snapshot) => {
       const nextUsers = snapshot.docs
         .map((userDoc) => normalizeFirestoreUser(userDoc.id, userDoc.data()))
         .sort((left, right) => left.displayName.localeCompare(right.displayName))
       setAllUsers(nextUsers)
-      nextUsers.forEach((candidate) => void syncUserIfNeeded(candidate))
+      nextUsers.forEach((candidate) => {
+        void syncUserIfNeeded(candidate)
+      })
     })
   }, [canManage])
 
@@ -216,28 +240,44 @@ export default function App() {
       setAdminLogs([])
       return
     }
+
     const logsQuery = query(collection(db, "adminLogs"), orderBy("createdAt", "desc"))
     return onSnapshot(logsQuery, (snapshot) => {
-      setAdminLogs(snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() } as AdminLog)))
+      setAdminLogs(
+        snapshot.docs.map((docItem) => ({
+          id: docItem.id,
+          ...docItem.data(),
+        }) as AdminLog)
+      )
     })
   }, [canManage])
 
   useEffect(() => {
     if (!canManage || allRequests.length === 0) return
+
     const migrateReasons = async () => {
       const legacyRequests = allRequests.filter(
         (request) => typeof request.reason === "string" && request.reason.length > 0
       )
+
       for (const request of legacyRequests) {
-        await setDoc(doc(db, "leaveRequestReasons", request.id), {
-          requestId: request.id,
-          userId: request.userId,
-          reason: request.reason,
-          createdAt: request.createdAt,
-        }, { merge: true })
-        await updateDoc(doc(db, "leaveRequests", request.id), { reason: deleteField() })
+        await setDoc(
+          doc(db, "leaveRequestReasons", request.id),
+          {
+            requestId: request.id,
+            userId: request.userId,
+            reason: request.reason,
+            createdAt: request.createdAt,
+          },
+          { merge: true }
+        )
+
+        await updateDoc(doc(db, "leaveRequests", request.id), {
+          reason: deleteField(),
+        })
       }
     }
+
     void migrateReasons()
   }, [allRequests, canManage])
 
@@ -247,15 +287,24 @@ export default function App() {
       toast.success("로그인되었습니다.")
     } catch (error) {
       console.error(error)
-      const code = typeof error === "object" && error && "code" in error ? String((error as { code?: string }).code) : ""
+
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: string }).code)
+          : ""
+
       if (code === "auth/unauthorized-domain") {
-        toast.error("Firebase Authentication 설정에서 localhost와 127.0.0.1을 허용 도메인에 추가해 주세요.")
+        toast.error(
+          "Firebase Authentication 설정에서 localhost와 127.0.0.1을 허용 도메인에 추가해 주세요."
+        )
         return
       }
+
       if (code === "auth/popup-blocked") {
         toast.error("브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.")
         return
       }
+
       toast.error("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.")
     }
   }
@@ -263,6 +312,18 @@ export default function App() {
   const handleLogout = async () => {
     await signOut(auth)
     toast.success("로그아웃되었습니다.")
+  }
+
+  const handleRequestModalChange = (open: boolean) => {
+    setIsRequestModalOpen(open)
+    if (!open) {
+      setEditingRequest(null)
+    }
+  }
+
+  const startEditingRequest = (request: LeaveRequest) => {
+    setEditingRequest(request)
+    setIsRequestModalOpen(true)
   }
 
   const submitRequest = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -275,7 +336,7 @@ export default function App() {
     const endDate = String(formData.get("endDate") ?? "")
     const reason = String(formData.get("reason") ?? "").trim()
 
-    if (!startDate || !endDate || !reason) {
+    if (!type || !startDate || !endDate || !reason) {
       toast.error("휴가 종류, 기간, 사유를 모두 입력해 주세요.")
       return
     }
@@ -315,10 +376,19 @@ export default function App() {
     }
 
     try {
-      const createdAt = new Date().toISOString()
-      const requestRef = doc(collection(db, "leaveRequests"))
+      if (editingRequest && editingRequest.status !== "PENDING") {
+        toast.error("승인 대기 중인 신청만 수정할 수 있습니다.")
+        return
+      }
 
-      await setDoc(requestRef, {
+      const submittedAt = new Date().toISOString()
+      const isEditing = editingRequest !== null
+      const requestRef = editingRequest
+        ? doc(db, "leaveRequests", editingRequest.id)
+        : doc(collection(db, "leaveRequests"))
+      const batch = writeBatch(db)
+
+      batch.set(requestRef, {
         id: requestRef.id,
         userId: currentUser.uid,
         userName: currentUser.displayName,
@@ -326,23 +396,54 @@ export default function App() {
         startDate,
         endDate,
         status: "PENDING",
-        createdAt,
+        createdAt: submittedAt,
         daysCount,
       })
 
-      await setDoc(doc(db, "leaveRequestReasons", requestRef.id), {
+      batch.set(doc(db, "leaveRequestReasons", requestRef.id), {
         requestId: requestRef.id,
         userId: currentUser.uid,
         reason,
-        createdAt,
+        createdAt: submittedAt,
       })
 
+      await batch.commit()
+
       setUser(currentUser)
-      setIsRequestModalOpen(false)
-      toast.success("휴가 신청이 완료되었습니다.")
+      handleRequestModalChange(false)
+      toast.success(
+        isEditing
+          ? "휴가 신청을 수정하고 다시 신청했습니다."
+          : "휴가 신청이 완료되었습니다."
+      )
     } catch (error) {
       console.error(error)
       toast.error("신청 중 오류가 발생했습니다.")
+    }
+  }
+
+  const cancelOwnRequest = async (request: LeaveRequest) => {
+    if (!user) return
+
+    if (request.userId !== user.uid || request.status !== "PENDING") {
+      toast.error("승인 대기 중인 내 신청만 취소할 수 있습니다.")
+      return
+    }
+
+    try {
+      const batch = writeBatch(db)
+      batch.delete(doc(db, "leaveRequests", request.id))
+      batch.delete(doc(db, "leaveRequestReasons", request.id))
+      await batch.commit()
+
+      if (editingRequest?.id === request.id) {
+        handleRequestModalChange(false)
+      }
+
+      toast.success("휴가 신청을 취소했습니다.")
+    } catch (error) {
+      console.error(error)
+      toast.error("신청 취소 중 오류가 발생했습니다.")
     }
   }
 
@@ -356,6 +457,7 @@ export default function App() {
       const batch = writeBatch(db)
       const requestRef = doc(db, "leaveRequests", request.id)
       const targetUserRef = doc(db, "users", request.userId)
+      const requestUpdate: Record<string, unknown> = { status }
       let nextTargetUser: User | null = null
 
       if (status === "APPROVED") {
@@ -368,22 +470,37 @@ export default function App() {
         const syncedTargetUser = syncAnnualLeaveIfNeeded(
           normalizeFirestoreUser(request.userId, targetUserSnapshot.data())
         ).user
+        nextTargetUser = syncedTargetUser
 
         if (request.type === "COMPENSATORY") {
           nextTargetUser = {
             ...syncedTargetUser,
             usedCompLeave: syncedTargetUser.usedCompLeave + request.daysCount,
           }
+          requestUpdate.approvalAdjustment = { compDays: request.daysCount }
 
           batch.update(targetUserRef, {
-            totalLeave: syncedTargetUser.totalLeave,
-            usedLeave: syncedTargetUser.usedLeave,
-            carryoverLeaves: syncedTargetUser.carryoverLeaves,
-            nextLeaveAccrualDate: syncedTargetUser.nextLeaveAccrualDate,
-            usedCompLeave: increment(request.daysCount),
+            totalLeave: nextTargetUser.totalLeave,
+            usedLeave: nextTargetUser.usedLeave,
+            carryoverLeaves: nextTargetUser.carryoverLeaves,
+            nextLeaveAccrualDate: nextTargetUser.nextLeaveAccrualDate,
+            usedCompLeave: nextTargetUser.usedCompLeave,
           })
         } else if (request.type === "ANNUAL" || request.type === "HALF_DAY") {
-          nextTargetUser = consumeAnnualLeave(syncedTargetUser, request.daysCount)
+          const approved = consumeAnnualLeaveWithAdjustment(
+            syncedTargetUser,
+            request.daysCount
+          )
+          nextTargetUser = approved.user
+          requestUpdate.approvalAdjustment = approved.adjustment
+
+          batch.update(targetUserRef, {
+            totalLeave: nextTargetUser.totalLeave,
+            usedLeave: nextTargetUser.usedLeave,
+            carryoverLeaves: nextTargetUser.carryoverLeaves,
+            nextLeaveAccrualDate: nextTargetUser.nextLeaveAccrualDate,
+          })
+        } else {
           batch.update(targetUserRef, {
             totalLeave: nextTargetUser.totalLeave,
             usedLeave: nextTargetUser.usedLeave,
@@ -393,7 +510,7 @@ export default function App() {
         }
       }
 
-      batch.update(requestRef, { status })
+      batch.update(requestRef, requestUpdate)
       await batch.commit()
 
       if (nextTargetUser?.uid === user.uid) {
@@ -408,11 +525,95 @@ export default function App() {
       )
 
       toast.success(
-        `휴가 신청을 ${status === "APPROVED" ? "승인" : "반려"}했습니다.`
+        `휴가 요청을 ${status === "APPROVED" ? "승인" : "반려"}했습니다.`
       )
     } catch (error) {
       console.error(error)
       toast.error("처리 중 오류가 발생했습니다.")
+    }
+  }
+
+  const cancelApproval = async (request: LeaveRequest) => {
+    if (!user) return
+    if (request.status !== "APPROVED") {
+      toast.error("승인된 요청만 취소할 수 있습니다.")
+      return
+    }
+
+    try {
+      const batch = writeBatch(db)
+      const requestRef = doc(db, "leaveRequests", request.id)
+      const targetUserRef = doc(db, "users", request.userId)
+      const targetUserSnapshot = await getDoc(targetUserRef)
+
+      if (!targetUserSnapshot.exists()) {
+        toast.error("대상 직원 정보를 찾지 못했습니다.")
+        return
+      }
+
+      const syncedTargetUser = syncAnnualLeaveIfNeeded(
+        normalizeFirestoreUser(request.userId, targetUserSnapshot.data())
+      ).user
+      let nextTargetUser = syncedTargetUser
+
+      if (request.type === "COMPENSATORY") {
+        const restoredCompDays = request.approvalAdjustment?.compDays ?? request.daysCount
+        nextTargetUser = {
+          ...syncedTargetUser,
+          usedCompLeave: Math.max(0, syncedTargetUser.usedCompLeave - restoredCompDays),
+        }
+
+        batch.update(targetUserRef, {
+          totalLeave: nextTargetUser.totalLeave,
+          usedLeave: nextTargetUser.usedLeave,
+          carryoverLeaves: nextTargetUser.carryoverLeaves,
+          nextLeaveAccrualDate: nextTargetUser.nextLeaveAccrualDate,
+          usedCompLeave: nextTargetUser.usedCompLeave,
+        })
+      } else if (request.type === "ANNUAL" || request.type === "HALF_DAY") {
+        nextTargetUser = restoreAnnualLeave(syncedTargetUser, request.approvalAdjustment ?? {
+          currentYearDays: request.daysCount,
+          carryoverUsage: [],
+        })
+
+        batch.update(targetUserRef, {
+          totalLeave: nextTargetUser.totalLeave,
+          usedLeave: nextTargetUser.usedLeave,
+          carryoverLeaves: nextTargetUser.carryoverLeaves,
+          nextLeaveAccrualDate: nextTargetUser.nextLeaveAccrualDate,
+        })
+      } else {
+        batch.update(targetUserRef, {
+          totalLeave: nextTargetUser.totalLeave,
+          usedLeave: nextTargetUser.usedLeave,
+          carryoverLeaves: nextTargetUser.carryoverLeaves,
+          nextLeaveAccrualDate: nextTargetUser.nextLeaveAccrualDate,
+        })
+      }
+
+      batch.update(requestRef, {
+        status: "PENDING",
+        approvalAdjustment: deleteField(),
+        adminComment: deleteField(),
+      })
+
+      await batch.commit()
+
+      if (nextTargetUser.uid === user.uid) {
+        setUser(nextTargetUser)
+      }
+
+      await logAdminAction(
+        "CANCEL_APPROVAL",
+        request.userId,
+        request.userName,
+        `${getLeaveTypeLabel(request.type)} ${request.daysCount}일 승인 취소 후 승인 대기 중으로 복귀`
+      )
+
+      toast.success("승인을 취소하고 요청을 승인 대기 중으로 되돌렸습니다.")
+    } catch (error) {
+      console.error(error)
+      toast.error("승인 취소 중 오류가 발생했습니다.")
     }
   }
 
@@ -430,12 +631,17 @@ export default function App() {
     }
 
     try {
+      const updatedTargetUser = {
+        ...selectedUserForGrant,
+        totalCompLeave: selectedUserForGrant.totalCompLeave + amount,
+      }
+
       await updateDoc(doc(db, "users", selectedUserForGrant.uid), {
-        totalCompLeave: increment(amount),
+        totalCompLeave: updatedTargetUser.totalCompLeave,
       })
 
       if (user?.uid === selectedUserForGrant.uid) {
-        setUser({ ...user, totalCompLeave: user.totalCompLeave + amount })
+        setUser(updatedTargetUser)
       }
 
       await logAdminAction(
@@ -471,7 +677,7 @@ export default function App() {
     }
 
     if (totalLeave < 0 || totalCompLeave < 0) {
-      toast.error("연차 값은 음수가 될 수 없습니다.")
+      toast.error("연차 값은 음수일 수 없습니다.")
       return
     }
 
@@ -535,7 +741,7 @@ export default function App() {
         "SET_ROLE",
         selectedUserForRole.uid,
         selectedUserForRole.displayName,
-        `권한 변경: ${getRoleLabel(selectedUserForRole.role)} -> ${getRoleLabel(role)}`
+        `권한 변경 ${getRoleLabel(selectedUserForRole.role)} -> ${getRoleLabel(role)}`
       )
 
       setIsRoleModalOpen(false)
@@ -548,11 +754,38 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-white"><div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" /></div>
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
+      </div>
+    )
   }
 
   if (!user) {
-    return <div className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4"><Toaster position="top-center" /><div className="w-full max-w-md rounded-3xl border bg-white p-10 text-center shadow-sm"><div className="space-y-3"><p className="text-sm font-medium text-muted-foreground">Tips Leave Manager</p><h1 className="text-3xl font-bold tracking-tight">연차와 휴가를<br />한 화면에서 관리하세요</h1><p className="text-sm leading-6 text-muted-foreground">Google 계정으로 로그인하면 개인 휴가 신청과 전사 휴가 현황 확인을 바로 시작할 수 있습니다.</p></div><Button onClick={handleLogin} size="lg" className="mt-8 w-full">Google 계정으로 시작하기</Button></div></div>
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4">
+        <Toaster position="top-center" />
+        <div className="w-full max-w-md rounded-3xl border bg-white p-10 text-center shadow-sm">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              Tips Leave Manager
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              연차와 휴가를
+              <br />
+              한 화면에서 관리해요
+            </h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Google 계정으로 로그인하면 개인 휴가 신청과 회사 휴가 현황 확인을
+              바로 시작할 수 있습니다.
+            </p>
+          </div>
+          <Button onClick={handleLogin} size="lg" className="mt-8 w-full">
+            Google 계정으로 시작하기
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -561,25 +794,53 @@ export default function App() {
       <nav className="sticky top-0 z-40 border-b bg-white/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
-            <span className="text-xl font-bold tracking-tight">Tips Leave Manager</span>
+            <span className="text-xl font-bold tracking-tight">
+              Tips Leave Manager
+            </span>
             <div className="hidden items-center gap-1 md:flex">
-              <NavButton active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} icon={<LayoutDashboard size={18} />} label="대시보드" />
-              <NavButton active={activeTab === "history"} onClick={() => setActiveTab("history")} icon={<History size={18} />} label="휴가 현황" />
-              {canManage && <NavButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} icon={<ShieldCheck size={18} />} label="관리 도구" />}
+              <NavButton
+                active={activeTab === "dashboard"}
+                onClick={() => setActiveTab("dashboard")}
+                icon={<LayoutDashboard size={18} />}
+                label="대시보드"
+              />
+              <NavButton
+                active={activeTab === "history"}
+                onClick={() => setActiveTab("history")}
+                icon={<History size={18} />}
+                label="휴가 현황"
+              />
+              {canManage && (
+                <NavButton
+                  active={activeTab === "admin"}
+                  onClick={() => setActiveTab("admin")}
+                  icon={<ShieldCheck size={18} />}
+                  label="관리 도구"
+                />
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {getRoleLabel(user.role)}
+                </p>
               </div>
               <Avatar className="h-8 w-8 border">
-                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} />
+                <AvatarImage
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+                />
                 <AvatarFallback>{getDisplayInitial(user.displayName)}</AvatarFallback>
               </Avatar>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-black">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="text-muted-foreground hover:text-black"
+            >
               <LogOut size={18} />
             </Button>
           </div>
@@ -587,29 +848,61 @@ export default function App() {
       </nav>
 
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-        {activeTab === "dashboard" && <DashboardSection user={user} requests={requests} isRequestModalOpen={isRequestModalOpen} onRequestModalChange={setIsRequestModalOpen} onSubmitRequest={submitRequest} availableAnnualLeave={availableAnnualLeave} carryoverBalance={carryoverBalance} />}
-        {activeTab === "history" && <HistorySection allRequests={allRequests} requestReasons={requestReasons} showLeaveReason={showLeaveReason} />}
+        {activeTab === "dashboard" && (
+          <DashboardSection
+            user={user}
+            requests={requests}
+            requestReasons={requestReasons}
+            editingRequest={editingRequest}
+            isRequestModalOpen={isRequestModalOpen}
+            onRequestModalChange={handleRequestModalChange}
+            onSubmitRequest={submitRequest}
+            onEditRequest={startEditingRequest}
+            onCancelRequest={(request) => void cancelOwnRequest(request)}
+            availableAnnualLeave={availableAnnualLeave}
+            carryoverBalance={carryoverBalance}
+          />
+        )}
+
+        {activeTab === "history" && (
+          <HistorySection
+            allRequests={allRequests}
+            requestReasons={requestReasons}
+            showLeaveReason={showLeaveReason}
+          />
+        )}
+
         {activeTab === "admin" && canManage && (
           <AdminSection
             user={user}
-            pendingRequests={pendingRequests}
+            managedRequests={managedRequests}
             requestReasons={requestReasons}
             adminLogs={adminLogs}
             allUsers={allUsers}
             isRoleModalOpen={isRoleModalOpen}
             selectedUserForRole={selectedUserForRole}
-            onRoleModalChange={(open, member) => { setIsRoleModalOpen(open); setSelectedUserForRole(open ? member ?? null : null) }}
+            onRoleModalChange={(open, member) => {
+              setIsRoleModalOpen(open)
+              setSelectedUserForRole(open ? member ?? null : null)
+            }}
             onChangeUserRole={changeUserRole}
             isAdjustModalOpen={isAdjustModalOpen}
             selectedUserForAdjust={selectedUserForAdjust}
-            onAdjustModalChange={(open, member) => { setIsAdjustModalOpen(open); setSelectedUserForAdjust(open ? member ?? null : null) }}
+            onAdjustModalChange={(open, member) => {
+              setIsAdjustModalOpen(open)
+              setSelectedUserForAdjust(open ? member ?? null : null)
+            }}
             onAdjustUserLeave={adjustUserLeave}
             isGrantModalOpen={isGrantModalOpen}
             selectedUserForGrant={selectedUserForGrant}
-            onGrantModalChange={(open, member) => { setIsGrantModalOpen(open); setSelectedUserForGrant(open ? member ?? null : null) }}
+            onGrantModalChange={(open, member) => {
+              setIsGrantModalOpen(open)
+              setSelectedUserForGrant(open ? member ?? null : null)
+            }}
             onGrantCompLeave={grantCompLeave}
             onApproveRequest={(request) => void handleAdminAction(request, "APPROVED")}
             onRejectRequest={(request) => void handleAdminAction(request, "REJECTED")}
+            onCancelApproval={(request) => void cancelApproval(request)}
           />
         )}
       </main>

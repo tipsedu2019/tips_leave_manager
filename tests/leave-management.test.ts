@@ -3,7 +3,9 @@ import assert from "node:assert/strict"
 
 import {
   consumeAnnualLeave,
+  consumeAnnualLeaveWithAdjustment,
   getAvailableAnnualLeave,
+  restoreAnnualLeave,
   syncAnnualLeaveIfNeeded,
 } from "../src/lib/leave-management"
 import { normalizeUserRecord } from "../src/lib/user-records"
@@ -73,4 +75,41 @@ test("multi-year sync accrues each anniversary using that year's entitlement", (
   ])
   assert.equal(result.user.totalLeave, 17)
   assert.equal(result.user.nextLeaveAccrualDate, "2027-04-01")
+})
+
+test("consumeAnnualLeaveWithAdjustment records oldest-first usage and restoreAnnualLeave reverts it", () => {
+  const user = normalizeUserRecord({
+    uid: "user-4",
+    email: "user4@example.com",
+    displayName: "Tester 4",
+    role: "EMPLOYEE",
+    joinDate: "2023-04-01",
+    totalLeave: 16,
+    usedLeave: 2,
+    carryoverLeaves: [
+      { year: 2024, remainingDays: 1 },
+      { year: 2025, remainingDays: 2 },
+    ],
+  })
+
+  const approved = consumeAnnualLeaveWithAdjustment(user, 4)
+
+  assert.deepEqual(approved.adjustment, {
+    currentYearDays: 1,
+    carryoverUsage: [
+      { year: 2024, days: 1 },
+      { year: 2025, days: 2 },
+    ],
+  })
+  assert.deepEqual(approved.user.carryoverLeaves, [])
+  assert.equal(approved.user.usedLeave, 3)
+
+  const restored = restoreAnnualLeave(approved.user, approved.adjustment)
+
+  assert.deepEqual(restored.carryoverLeaves, [
+    { year: 2024, remainingDays: 1 },
+    { year: 2025, remainingDays: 2 },
+  ])
+  assert.equal(restored.usedLeave, 2)
+  assert.equal(getAvailableAnnualLeave(restored), getAvailableAnnualLeave(user))
 })

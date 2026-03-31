@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Check, Edit2, Gift, ShieldPlus, X } from "lucide-react"
+import { Check, Edit2, Gift, RotateCcw, ShieldPlus, X } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -48,7 +48,7 @@ import {
 
 export function AdminSection({
   user,
-  pendingRequests,
+  managedRequests,
   requestReasons,
   adminLogs,
   allUsers,
@@ -66,9 +66,10 @@ export function AdminSection({
   onGrantCompLeave,
   onApproveRequest,
   onRejectRequest,
+  onCancelApproval,
 }: {
   user: User
-  pendingRequests: LeaveRequest[]
+  managedRequests: LeaveRequest[]
   requestReasons: Record<string, string>
   adminLogs: AdminLog[]
   allUsers: User[]
@@ -86,6 +87,7 @@ export function AdminSection({
   onGrantCompLeave: (event: React.FormEvent<HTMLFormElement>) => void
   onApproveRequest: (request: LeaveRequest) => void
   onRejectRequest: (request: LeaveRequest) => void
+  onCancelApproval: (request: LeaveRequest) => void
 }) {
   return (
     <section className="space-y-12">
@@ -97,7 +99,7 @@ export function AdminSection({
       </div>
 
       <section className="space-y-6">
-        <h3 className="text-xl font-bold tracking-tight">승인 대기 요청</h3>
+        <h3 className="text-xl font-bold tracking-tight">휴가 승인 관리</h3>
         <div className="rounded-3xl border bg-white shadow-sm">
           <Table>
             <TableHeader>
@@ -108,11 +110,12 @@ export function AdminSection({
                 <TableHead>기간</TableHead>
                 <TableHead>일수</TableHead>
                 <TableHead>사유</TableHead>
+                <TableHead>상태</TableHead>
                 <TableHead className="text-right">작업</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingRequests.map((request) => (
+              {managedRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(request.createdAt)}
@@ -135,37 +138,54 @@ export function AdminSection({
                   <TableCell className="max-w-[220px] truncate text-xs">
                     {requestReasons[request.id] ?? request.reason ?? "-"}
                   </TableCell>
+                  <TableCell>
+                    <StatusBadge status={request.status} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    {request.status === "PENDING" ? (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
+                          className="text-green-600 hover:bg-green-50"
+                          onClick={() => onApproveRequest(request)}
+                          title="승인"
+                        >
+                          <Check size={16} />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50"
+                          onClick={() => onRejectRequest(request)}
+                          title="반려"
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                    ) : request.status === "APPROVED" ? (
                       <Button
-                        size="icon-sm"
+                        size="sm"
                         variant="outline"
-                        className="text-green-600 hover:bg-green-50"
-                        onClick={() => onApproveRequest(request)}
-                        title="승인"
+                        className="gap-2"
+                        onClick={() => onCancelApproval(request)}
                       >
-                        <Check size={16} />
+                        <RotateCcw size={14} />
+                        승인 취소
                       </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="outline"
-                        className="text-red-600 hover:bg-red-50"
-                        onClick={() => onRejectRequest(request)}
-                        title="반려"
-                      >
-                        <X size={16} />
-                      </Button>
-                    </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
-              {pendingRequests.length === 0 && (
+              {managedRequests.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-32 text-center text-muted-foreground"
                   >
-                    승인 대기 중인 요청이 없습니다.
+                    처리할 휴가 요청이 없습니다.
                   </TableCell>
                 </TableRow>
               )}
@@ -175,7 +195,7 @@ export function AdminSection({
       </section>
 
       <section className="space-y-6">
-        <h3 className="text-xl font-bold tracking-tight">관리 작업 이력</h3>
+        <h3 className="text-xl font-bold tracking-tight">관리자 작업 이력</h3>
         <div className="max-h-[420px] overflow-y-auto rounded-3xl border bg-white shadow-sm">
           <Table>
             <TableHeader>
@@ -278,7 +298,7 @@ export function AdminSection({
                                 <Label htmlFor="role">권한</Label>
                                 <Select name="role" defaultValue={member.role} required>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="권한을 선택해 주세요" />
+                                    <SelectValue placeholder="권한을 선택해 주세요." />
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="ADMIN">최고관리자</SelectItem>
@@ -315,7 +335,7 @@ export function AdminSection({
                             <DialogHeader>
                               <DialogTitle>직원 정보 및 연차 조정</DialogTitle>
                               <DialogDescription>
-                                {member.displayName}님의 입사일과 연차 기준을 수정합니다.
+                                {member.displayName}님의 입사일과 연차 기준을 조정합니다.
                               </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">

@@ -1,49 +1,73 @@
-export type LeaveType = 'ANNUAL' | 'HALF_DAY' | 'SICK' | 'SPECIAL' | 'COMPENSATORY' | 'OTHER';
+export type LeaveType =
+  | "ANNUAL"
+  | "HALF_DAY"
+  | "SICK"
+  | "SPECIAL"
+  | "COMPENSATORY"
+  | "OTHER"
 
-export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED"
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
+export type UserRole = "ADMIN" | "MANAGER" | "EMPLOYEE"
 
 export interface CarryoverLeave {
-  year: number;
-  remainingDays: number;
+  year: number
+  remainingDays: number
+}
+
+export interface CarryoverUsage {
+  year: number
+  days: number
+}
+
+export interface LeaveApprovalAdjustment {
+  currentYearDays?: number
+  carryoverUsage?: CarryoverUsage[]
+  compDays?: number
 }
 
 export interface User {
-  uid: string;
-  email: string;
-  displayName: string;
-  role: UserRole;
-  totalLeave: number;
-  usedLeave: number;
-  totalCompLeave: number;
-  usedCompLeave: number;
-  joinDate: string;
-  carryoverLeaves: CarryoverLeave[];
-  nextLeaveAccrualDate: string;
+  uid: string
+  email: string
+  displayName: string
+  role: UserRole
+  totalLeave: number
+  usedLeave: number
+  totalCompLeave: number
+  usedCompLeave: number
+  joinDate: string
+  carryoverLeaves: CarryoverLeave[]
+  nextLeaveAccrualDate: string
 }
 
 export interface LeaveRequest {
-  id: string;
-  userId: string;
-  userName: string;
-  type: LeaveType;
-  startDate: string;
-  endDate: string;
-  reason?: string;
-  status: LeaveStatus;
-  createdAt: string;
-  adminComment?: string;
-  daysCount: number;
+  id: string
+  userId: string
+  userName: string
+  type: LeaveType
+  startDate: string
+  endDate: string
+  reason?: string
+  status: LeaveStatus
+  createdAt: string
+  adminComment?: string
+  daysCount: number
+  approvalAdjustment?: LeaveApprovalAdjustment
 }
 
 export interface AdminLog {
-  id: string;
-  adminId: string;
-  adminName: string;
-  targetUserId: string;
-  targetUserName: string;
-  action: 'GRANT_COMP' | 'ADJUST_LEAVE' | 'APPROVE_LEAVE' | 'REJECT_LEAVE' | 'SET_ROLE';
-  details: string;
-  createdAt: string;
+  id: string
+  adminId: string
+  adminName: string
+  targetUserId: string
+  targetUserName: string
+  action:
+    | "GRANT_COMP"
+    | "ADJUST_LEAVE"
+    | "APPROVE_LEAVE"
+    | "REJECT_LEAVE"
+    | "CANCEL_APPROVAL"
+    | "SET_ROLE"
+  details: string
+  createdAt: string
 }

@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Plus } from "lucide-react"
+import { Edit2, Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,27 +29,38 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatDate, getLeaveTypeLabel } from "../lib/utils"
+import { getLeaveTypeLabel } from "../lib/utils"
 import { LeaveRequest, User } from "../types"
 import { StatCard, StatusBadge, formatDays } from "./leave-common"
 
 export function DashboardSection({
   user,
   requests,
+  requestReasons,
+  editingRequest,
   isRequestModalOpen,
   onRequestModalChange,
   onSubmitRequest,
+  onEditRequest,
+  onCancelRequest,
   availableAnnualLeave,
   carryoverBalance,
 }: {
   user: User
   requests: LeaveRequest[]
+  requestReasons: Record<string, string>
+  editingRequest: LeaveRequest | null
   isRequestModalOpen: boolean
   onRequestModalChange: (open: boolean) => void
   onSubmitRequest: (event: React.FormEvent<HTMLFormElement>) => void
+  onEditRequest: (request: LeaveRequest) => void
+  onCancelRequest: (request: LeaveRequest) => void
   availableAnnualLeave: number
   carryoverBalance: number
 }) {
+  const isEditing = editingRequest !== null
+  const editingReason = editingRequest ? requestReasons[editingRequest.id] ?? "" : ""
+
   return (
     <section className="space-y-8">
       <div className="grid gap-4 md:grid-cols-4">
@@ -83,7 +94,7 @@ export function DashboardSection({
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight">최근 내 신청</h2>
+            <h2 className="text-xl font-bold tracking-tight">내 휴가 신청</h2>
             <Dialog open={isRequestModalOpen} onOpenChange={onRequestModalChange}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -92,28 +103,35 @@ export function DashboardSection({
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[440px]">
-                <form onSubmit={onSubmitRequest}>
+                <form key={editingRequest?.id ?? "create"} onSubmit={onSubmitRequest}>
                   <DialogHeader>
-                    <DialogTitle>휴가 신청</DialogTitle>
+                    <DialogTitle>
+                      {isEditing ? "휴가 신청 수정" : "휴가 신청"}
+                    </DialogTitle>
                     <DialogDescription>
-                      휴가 종류와 기간을 선택해 신청해 주세요. 사유는 관리자와
-                      부관리자만 확인할 수 있습니다.
+                      {isEditing
+                        ? "내용을 수정하면 승인 대기 중 상태로 다시 제출됩니다."
+                        : "휴가 종류와 기간을 선택해 신청해 주세요. 사유는 관리자와 부관리자만 확인할 수 있습니다."}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label htmlFor="type">휴가 종류</Label>
-                      <Select name="type" defaultValue="ANNUAL" required>
+                      <Select
+                        name="type"
+                        defaultValue={editingRequest?.type ?? "ANNUAL"}
+                        required
+                      >
                         <SelectTrigger>
-                          <SelectValue placeholder="휴가 종류를 선택해 주세요" />
+                          <SelectValue placeholder="휴가 종류를 선택해 주세요." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ANNUAL">연차</SelectItem>
                           <SelectItem value="HALF_DAY">반차</SelectItem>
                           <SelectItem value="COMPENSATORY">대체휴일</SelectItem>
                           <SelectItem value="SICK">병가</SelectItem>
-                          <SelectItem value="SPECIAL">특별휴가</SelectItem>
+                          <SelectItem value="SPECIAL">경조사</SelectItem>
                           <SelectItem value="OTHER">기타</SelectItem>
                         </SelectContent>
                       </Select>
@@ -122,11 +140,23 @@ export function DashboardSection({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="startDate">시작일</Label>
-                        <Input id="startDate" name="startDate" type="date" required />
+                        <Input
+                          id="startDate"
+                          name="startDate"
+                          type="date"
+                          defaultValue={editingRequest?.startDate ?? ""}
+                          required
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="endDate">종료일</Label>
-                        <Input id="endDate" name="endDate" type="date" required />
+                        <Input
+                          id="endDate"
+                          name="endDate"
+                          type="date"
+                          defaultValue={editingRequest?.endDate ?? ""}
+                          required
+                        />
                       </div>
                     </div>
 
@@ -135,7 +165,8 @@ export function DashboardSection({
                       <Input
                         id="reason"
                         name="reason"
-                        placeholder="휴가 사유를 입력해 주세요"
+                        defaultValue={editingReason}
+                        placeholder="휴가 사유를 입력해 주세요."
                         required
                       />
                     </div>
@@ -143,7 +174,7 @@ export function DashboardSection({
 
                   <DialogFooter>
                     <Button type="submit" className="w-full">
-                      신청하기
+                      {isEditing ? "수정 후 다시 신청하기" : "신청하기"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -159,10 +190,11 @@ export function DashboardSection({
                   <TableHead>기간</TableHead>
                   <TableHead>일수</TableHead>
                   <TableHead>상태</TableHead>
+                  <TableHead className="text-right">작업</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.slice(0, 5).map((request) => (
+                {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell className="font-medium">
                       {getLeaveTypeLabel(request.type)}
@@ -174,12 +206,37 @@ export function DashboardSection({
                     <TableCell>
                       <StatusBadge status={request.status} />
                     </TableCell>
+                    <TableCell className="text-right">
+                      {request.status === "PENDING" ? (
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="icon-sm"
+                            variant="outline"
+                            title="수정"
+                            onClick={() => onEditRequest(request)}
+                          >
+                            <Edit2 size={14} />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="outline"
+                            className="text-red-600 hover:bg-red-50"
+                            title="신청 취소"
+                            onClick={() => onCancelRequest(request)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {requests.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={5}
                       className="h-32 text-center text-muted-foreground"
                     >
                       아직 신청한 휴가가 없습니다.
@@ -197,7 +254,7 @@ export function DashboardSection({
             <div className="space-y-1">
               <p className="text-sm font-semibold">다음 자동 연차 발생일</p>
               <p className="text-sm text-muted-foreground">
-                {formatDate(user.nextLeaveAccrualDate)}
+                {user.nextLeaveAccrualDate}
               </p>
             </div>
 
@@ -227,8 +284,8 @@ export function DashboardSection({
             </div>
 
             <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              이월 연차는 기한 없이 누적되며, 연차 사용 시 가장 오래된 이월
-              연차부터 먼저 차감됩니다.
+              이월 연차는 기한 없이 계속 누적되며, 연차 사용 시 가장 오래된
+              이월 연차부터 먼저 차감됩니다.
             </div>
           </div>
         </div>

@@ -1,4 +1,9 @@
-import { CarryoverLeave, User } from "../types"
+import {
+  CarryoverLeave,
+  CarryoverUsage,
+  LeaveApprovalAdjustment,
+  User,
+} from "../types"
 import { calculateAnnualLeave } from "./utils"
 
 function parseIsoDate(value: string) {
@@ -65,11 +70,16 @@ export function getCarryoverBalance(user: Pick<User, "carryoverLeaves">) {
   return user.carryoverLeaves.reduce((sum, entry) => sum + entry.remainingDays, 0)
 }
 
-export function getAvailableAnnualLeave(user: Pick<User, "carryoverLeaves" | "totalLeave" | "usedLeave">) {
+export function getAvailableAnnualLeave(
+  user: Pick<User, "carryoverLeaves" | "totalLeave" | "usedLeave">
+) {
   return getCarryoverBalance(user) + Math.max(0, user.totalLeave - user.usedLeave)
 }
 
-export function syncAnnualLeaveIfNeeded(user: User, today = new Date().toISOString().split("T")[0]) {
+export function syncAnnualLeaveIfNeeded(
+  user: User,
+  today = new Date().toISOString().split("T")[0]
+) {
   let nextUser = {
     ...user,
     carryoverLeaves: sortCarryovers(user.carryoverLeaves),
@@ -103,11 +113,12 @@ export function syncAnnualLeaveIfNeeded(user: User, today = new Date().toISOStri
   return { user: nextUser, changed }
 }
 
-export function consumeAnnualLeave(user: User, days: number) {
+export function consumeAnnualLeaveWithAdjustment(user: User, days: number) {
   let remainingDays = days
   const carryoverLeaves = sortCarryovers(user.carryoverLeaves).map((entry) => ({
     ...entry,
   }))
+  const carryoverUsage: CarryoverUsage[] = []
 
   for (const entry of carryoverLeaves) {
     if (remainingDays <= 0) {
@@ -115,8 +126,14 @@ export function consumeAnnualLeave(user: User, days: number) {
     }
 
     const usedFromCarryover = Math.min(entry.remainingDays, remainingDays)
-    entry.remainingDays -= usedFromCarryover
-    remainingDays -= usedFromCarryover
+    if (usedFromCarryover > 0) {
+      entry.remainingDays -= usedFromCarryover
+      remainingDays -= usedFromCarryover
+      carryoverUsage.push({
+        year: entry.year,
+        days: usedFromCarryover,
+      })
+    }
   }
 
   const currentYearAvailable = Math.max(0, user.totalLeave - user.usedLeave)
@@ -124,9 +141,41 @@ export function consumeAnnualLeave(user: User, days: number) {
     throw new Error("Insufficient annual leave balance")
   }
 
+  const adjustment: LeaveApprovalAdjustment = {
+    currentYearDays: remainingDays,
+    carryoverUsage,
+  }
+
+  return {
+    user: {
+      ...user,
+      carryoverLeaves: sortCarryovers(carryoverLeaves),
+      usedLeave: user.usedLeave + remainingDays,
+    },
+    adjustment,
+  }
+}
+
+export function consumeAnnualLeave(user: User, days: number) {
+  return consumeAnnualLeaveWithAdjustment(user, days).user
+}
+
+export function restoreAnnualLeave(
+  user: User,
+  adjustment: LeaveApprovalAdjustment | undefined
+) {
+  const currentYearDays = adjustment?.currentYearDays ?? 0
+  const carryoverUsage = adjustment?.carryoverUsage ?? []
+
+  let carryoverLeaves = sortCarryovers(user.carryoverLeaves)
+
+  for (const entry of carryoverUsage) {
+    carryoverLeaves = mergeCarryoverLeave(carryoverLeaves, entry.year, entry.days)
+  }
+
   return {
     ...user,
-    carryoverLeaves: sortCarryovers(carryoverLeaves),
-    usedLeave: user.usedLeave + remainingDays,
+    carryoverLeaves,
+    usedLeave: Math.max(0, user.usedLeave - currentYearDays),
   }
 }
