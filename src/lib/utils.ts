@@ -15,6 +15,18 @@ export function formatDate(date: string | Date) {
   })
 }
 
+export function formatDateTime(date: string | Date) {
+  const value = new Date(date)
+
+  return value.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export function getLeaveTypeLabel(type: string) {
   switch (type) {
     case "ANNUAL":

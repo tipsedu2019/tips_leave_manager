@@ -94,6 +94,32 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidNotification(data) {
+      return data.keys().hasAll([
+               'userId',
+               'actorId',
+               'title',
+               'message',
+               'createdAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId',
+               'actorId',
+               'title',
+               'message',
+               'createdAt',
+               'readAt',
+               'linkTab'
+             ]) &&
+             data.userId is string &&
+             data.actorId is string &&
+             data.title is string &&
+             data.message is string &&
+             data.createdAt is string &&
+             (!data.keys().hasAny(['readAt']) || data.readAt is string) &&
+             (!data.keys().hasAny(['linkTab']) || data.linkTab in ['dashboard', 'history', 'admin']);
+    }
+
     function requestIsPending(requestId) {
       return exists(/databases/$(database)/documents/leaveRequests/$(requestId)) &&
         get(/databases/$(database)/documents/leaveRequests/$(requestId)).data.status == 'PENDING';
@@ -154,6 +180,16 @@ service cloud.firestore {
     match /adminLogs/{logId} {
       allow read: if isPrivileged();
       allow create: if isPrivileged();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() &&
+        request.resource.data.actorId == request.auth.uid &&
+        isValidNotification(request.resource.data);
+      allow update: if isOwner(resource.data.userId) &&
+        isValidNotification(request.resource.data) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
     }
   }
 }

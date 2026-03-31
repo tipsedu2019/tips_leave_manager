@@ -1,6 +1,8 @@
 import {
   CarryoverLeave,
   CarryoverUsage,
+  LeaveAccrualEvent,
+  LeaveAccrualHistoryEntry,
   LeaveApprovalAdjustment,
   User,
 } from "../types"
@@ -76,6 +78,31 @@ export function getAvailableAnnualLeave(
   return getCarryoverBalance(user) + Math.max(0, user.totalLeave - user.usedLeave)
 }
 
+export function getAccrualHistory(
+  user: Pick<User, "joinDate" | "nextLeaveAccrualDate">
+) {
+  const entries: LeaveAccrualHistoryEntry[] = [
+    {
+      accrualDate: user.joinDate,
+      grantedDays: calculateAnnualLeave(user.joinDate, user.joinDate),
+      kind: "INITIAL",
+    },
+  ]
+
+  let nextAccrualDate = getNextLeaveAccrualDate(user.joinDate, user.joinDate)
+
+  while (nextAccrualDate < user.nextLeaveAccrualDate) {
+    entries.push({
+      accrualDate: nextAccrualDate,
+      grantedDays: calculateAnnualLeave(user.joinDate, nextAccrualDate),
+      kind: "ANNIVERSARY",
+    })
+    nextAccrualDate = formatIsoDate(addYears(parseIsoDate(nextAccrualDate), 1))
+  }
+
+  return entries.sort((left, right) => right.accrualDate.localeCompare(left.accrualDate))
+}
+
 export function syncAnnualLeaveIfNeeded(
   user: User,
   today = new Date().toISOString().split("T")[0]
@@ -87,10 +114,20 @@ export function syncAnnualLeaveIfNeeded(
   let changed = false
   let nextAccrualDate = parseIsoDate(nextUser.nextLeaveAccrualDate)
   const todayDate = parseIsoDate(today)
+  const events: LeaveAccrualEvent[] = []
 
   while (nextAccrualDate <= todayDate) {
     const carryoverYear = nextAccrualDate.getFullYear() - 1
     const remainingLeave = Math.max(0, nextUser.totalLeave - nextUser.usedLeave)
+    const accrualDate = formatIsoDate(nextAccrualDate)
+    const grantedDays = calculateAnnualLeave(nextUser.joinDate, accrualDate)
+
+    events.push({
+      accrualDate,
+      grantedDays,
+      carriedOverDays: remainingLeave,
+      kind: "ANNIVERSARY",
+    })
 
     nextUser = {
       ...nextUser,
@@ -99,10 +136,7 @@ export function syncAnnualLeaveIfNeeded(
         carryoverYear,
         remainingLeave
       ),
-      totalLeave: calculateAnnualLeave(
-        nextUser.joinDate,
-        formatIsoDate(nextAccrualDate)
-      ),
+      totalLeave: grantedDays,
       usedLeave: 0,
       nextLeaveAccrualDate: formatIsoDate(addYears(nextAccrualDate, 1)),
     }
@@ -110,7 +144,7 @@ export function syncAnnualLeaveIfNeeded(
     changed = true
   }
 
-  return { user: nextUser, changed }
+  return { user: nextUser, changed, events }
 }
 
 export function consumeAnnualLeaveWithAdjustment(user: User, days: number) {

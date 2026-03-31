@@ -11,24 +11,42 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
-  orderBy,
   query,
   setDoc,
   updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore"
-import { History, LayoutDashboard, LogOut, ShieldCheck } from "lucide-react"
+import {
+  Bell,
+  History,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react"
 import { Toaster, toast } from "sonner"
 
 import { auth, db } from "./firebase"
-import { AdminLog, LeaveRequest, LeaveType, User } from "./types"
-import { calculateAnnualLeave, getLeaveTypeLabel } from "./lib/utils"
+import {
+  AdminLog,
+  AppNotification,
+  AppTab,
+  LeaveRequest,
+  LeaveType,
+  User,
+} from "./types"
+import {
+  calculateAnnualLeave,
+  formatDateTime,
+  getLeaveTypeLabel,
+} from "./lib/utils"
 import { normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
   consumeAnnualLeaveWithAdjustment,
+  getAccrualHistory,
   getAvailableAnnualLeave,
   getCarryoverBalance,
   getNextLeaveAccrualDate,
@@ -37,6 +55,13 @@ import {
 } from "./lib/leave-management"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { AdminSection } from "./components/admin-section"
 import { DashboardSection } from "./components/dashboard-section"
 import { HistorySection } from "./components/history-section"
@@ -44,16 +69,26 @@ import { NavButton, getDisplayInitial } from "./components/leave-common"
 
 const OWNER_ADMIN_EMAIL = "yeoyuasset@gmail.com"
 
+function sortByCreatedAtDesc<T extends { createdAt: string }>(records: T[]) {
+  return [...records].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+function formatLeaveAmount(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1)
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard")
 
   const [requests, setRequests] = useState<LeaveRequest[]>([])
   const [allRequests, setAllRequests] = useState<LeaveRequest[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([])
   const [requestReasons, setRequestReasons] = useState<Record<string, string>>({})
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | null>(null)
@@ -69,6 +104,11 @@ export default function App() {
   const showLeaveReason = user ? canViewLeaveReason(user.role) : false
   const availableAnnualLeave = user ? getAvailableAnnualLeave(user) : 0
   const carryoverBalance = user ? getCarryoverBalance(user) : 0
+  const accrualHistory = useMemo(() => (user ? getAccrualHistory(user) : []), [user])
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((notification) => !notification.readAt).length,
+    [notifications]
+  )
   const managedRequests = useMemo(
     () => allRequests.filter((request) => request.status !== "REJECTED"),
     [allRequests]
@@ -80,8 +120,102 @@ export default function App() {
       ...data,
     } as Partial<User> & Pick<User, "uid" | "email" | "displayName" | "role">)
 
+  const createNotifications = async (
+    drafts: Array<
+      Omit<AppNotification, "id" | "actorId" | "createdAt"> & {
+        id?: string
+        createdAt?: string
+      }
+    >
+  ) => {
+    const actorId = auth.currentUser?.uid
+
+    if (!actorId || drafts.length === 0) {
+      return
+    }
+
+    const batch = writeBatch(db)
+    let hasWrites = false
+
+    for (const draft of drafts) {
+      const notificationRef = draft.id
+        ? doc(db, "notifications", draft.id)
+        : doc(collection(db, "notifications"))
+
+      if (draft.id) {
+        const snapshot = await getDoc(notificationRef)
+        if (snapshot.exists()) {
+          continue
+        }
+      }
+
+      const payload: Omit<AppNotification, "id"> = {
+        userId: draft.userId,
+        actorId,
+        title: draft.title,
+        message: draft.message,
+        createdAt: draft.createdAt ?? new Date().toISOString(),
+        ...(draft.linkTab ? { linkTab: draft.linkTab } : {}),
+        ...(draft.readAt ? { readAt: draft.readAt } : {}),
+      }
+
+      batch.set(notificationRef, payload)
+      hasWrites = true
+    }
+
+    if (hasWrites) {
+      await batch.commit()
+    }
+  }
+
+  const notifyUser = async (
+    targetUserId: string,
+    title: string,
+    message: string,
+    linkTab: AppTab = "dashboard",
+    options?: { id?: string; createdAt?: string }
+  ) => {
+    await createNotifications([
+      {
+        id: options?.id,
+        userId: targetUserId,
+        title,
+        message,
+        linkTab,
+        createdAt: options?.createdAt,
+      },
+    ])
+  }
+
+  const notifyPrivilegedUsers = async (
+    title: string,
+    message: string,
+    linkTab: AppTab = "admin"
+  ) => {
+    const actorId = auth.currentUser?.uid
+    if (!actorId) return
+
+    const privilegedUsersSnapshot = await getDocs(
+      query(collection(db, "users"), where("role", "in", ["ADMIN", "MANAGER"]))
+    )
+
+    const privilegedUsers = privilegedUsersSnapshot.docs
+      .map((member) => normalizeFirestoreUser(member.id, member.data()))
+      .filter((member) => member.uid !== actorId)
+
+    await createNotifications(
+      privilegedUsers.map((member) => ({
+        userId: member.uid,
+        title,
+        message,
+        linkTab,
+      }))
+    )
+  }
+
   const syncUserIfNeeded = async (candidate: User) => {
     const result = syncAnnualLeaveIfNeeded(candidate)
+
     if (result.changed) {
       await updateDoc(doc(db, "users", candidate.uid), {
         totalLeave: result.user.totalLeave,
@@ -89,7 +223,22 @@ export default function App() {
         carryoverLeaves: result.user.carryoverLeaves,
         nextLeaveAccrualDate: result.user.nextLeaveAccrualDate,
       })
+
+      await createNotifications(
+        result.events.map((event) => ({
+          id: `accrual-${candidate.uid}-${event.accrualDate}`,
+          userId: candidate.uid,
+          title: "연차가 자동 발생했습니다",
+          message:
+            event.carriedOverDays > 0
+              ? `입사일 기준으로 ${formatLeaveAmount(event.grantedDays)}일이 발생했고, 전년도 잔여 ${formatLeaveAmount(event.carriedOverDays)}일이 이월되었습니다.`
+              : `입사일 기준으로 ${formatLeaveAmount(event.grantedDays)}일의 연차가 발생했습니다.`,
+          createdAt: `${event.accrualDate}T00:00:00.000Z`,
+          linkTab: "dashboard",
+        }))
+      )
     }
+
     return result.user
   }
 
@@ -118,6 +267,31 @@ export default function App() {
     })
   }
 
+  const markNotificationsAsRead = async (targetIds?: string[]) => {
+    if (!user) return
+
+    const unreadIds =
+      targetIds ??
+      notifications
+        .filter((notification) => !notification.readAt)
+        .map((notification) => notification.id)
+
+    if (unreadIds.length === 0) {
+      return
+    }
+
+    const batch = writeBatch(db)
+    const readAt = new Date().toISOString()
+
+    unreadIds.forEach((notificationId) => {
+      batch.update(doc(db, "notifications", notificationId), {
+        readAt,
+      })
+    })
+
+    await batch.commit()
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -127,8 +301,10 @@ export default function App() {
         setAllUsers([])
         setAdminLogs([])
         setRequestReasons({})
+        setNotifications([])
         setEditingRequest(null)
         setIsRequestModalOpen(false)
+        setIsNotificationOpen(false)
         setLoading(false)
         return
       }
@@ -167,31 +343,32 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return
+
     const personalRequestsQuery = query(
       collection(db, "leaveRequests"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     )
+
     return onSnapshot(personalRequestsQuery, (snapshot) => {
-      setRequests(
-        snapshot.docs.map((docItem) => ({
-          id: docItem.id,
-          ...docItem.data(),
-        }) as LeaveRequest)
-      )
+      const nextRequests = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+      })) as LeaveRequest[]
+
+      setRequests(sortByCreatedAtDesc(nextRequests))
     })
   }, [user])
 
   useEffect(() => {
     if (!user) return
-    const allRequestsQuery = query(collection(db, "leaveRequests"), orderBy("createdAt", "desc"))
-    return onSnapshot(allRequestsQuery, (snapshot) => {
-      setAllRequests(
-        snapshot.docs.map((docItem) => ({
-          id: docItem.id,
-          ...docItem.data(),
-        }) as LeaveRequest)
-      )
+
+    return onSnapshot(collection(db, "leaveRequests"), (snapshot) => {
+      const nextRequests = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+      })) as LeaveRequest[]
+
+      setAllRequests(sortByCreatedAtDesc(nextRequests))
     })
   }, [user])
 
@@ -219,6 +396,27 @@ export default function App() {
   }, [canManage, user])
 
   useEffect(() => {
+    if (!user) {
+      setNotifications([])
+      return
+    }
+
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where("userId", "==", user.uid)
+    )
+
+    return onSnapshot(notificationsQuery, (snapshot) => {
+      const nextNotifications = snapshot.docs.map((notificationDoc) => ({
+        id: notificationDoc.id,
+        ...notificationDoc.data(),
+      })) as AppNotification[]
+
+      setNotifications(sortByCreatedAtDesc(nextNotifications))
+    })
+  }, [user])
+
+  useEffect(() => {
     if (!canManage) {
       setAllUsers([])
       return
@@ -228,6 +426,7 @@ export default function App() {
       const nextUsers = snapshot.docs
         .map((userDoc) => normalizeFirestoreUser(userDoc.id, userDoc.data()))
         .sort((left, right) => left.displayName.localeCompare(right.displayName))
+
       setAllUsers(nextUsers)
       nextUsers.forEach((candidate) => {
         void syncUserIfNeeded(candidate)
@@ -241,14 +440,13 @@ export default function App() {
       return
     }
 
-    const logsQuery = query(collection(db, "adminLogs"), orderBy("createdAt", "desc"))
-    return onSnapshot(logsQuery, (snapshot) => {
-      setAdminLogs(
-        snapshot.docs.map((docItem) => ({
-          id: docItem.id,
-          ...docItem.data(),
-        }) as AdminLog)
-      )
+    return onSnapshot(collection(db, "adminLogs"), (snapshot) => {
+      const nextLogs = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+      })) as AdminLog[]
+
+      setAdminLogs(sortByCreatedAtDesc(nextLogs))
     })
   }, [canManage])
 
@@ -280,7 +478,6 @@ export default function App() {
 
     void migrateReasons()
   }, [allRequests, canManage])
-
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider())
@@ -295,7 +492,7 @@ export default function App() {
 
       if (code === "auth/unauthorized-domain") {
         toast.error(
-          "Firebase Authentication 설정에서 localhost와 127.0.0.1을 허용 도메인에 추가해 주세요."
+          "Firebase Authentication 설정에서 localhost 또는 127.0.0.1을 허용 도메인에 추가해 주세요."
         )
         return
       }
@@ -318,6 +515,14 @@ export default function App() {
     setIsRequestModalOpen(open)
     if (!open) {
       setEditingRequest(null)
+    }
+  }
+
+  const handleNotificationOpenChange = (open: boolean) => {
+    setIsNotificationOpen(open)
+
+    if (open) {
+      void markNotificationsAsRead()
     }
   }
 
@@ -377,7 +582,7 @@ export default function App() {
 
     try {
       if (editingRequest && editingRequest.status !== "PENDING") {
-        toast.error("승인 대기 중인 신청만 수정할 수 있습니다.")
+        toast.error("승인 대기 중인 요청만 수정할 수 있습니다.")
         return
       }
 
@@ -408,13 +613,17 @@ export default function App() {
       })
 
       await batch.commit()
-
       setUser(currentUser)
       handleRequestModalChange(false)
+
+      await notifyPrivilegedUsers(
+        isEditing ? "휴가 신청이 다시 제출되었습니다" : "새 휴가 신청이 등록되었습니다",
+        `${currentUser.displayName}님이 ${getLeaveTypeLabel(type)} ${formatLeaveAmount(daysCount)}일을 ${isEditing ? "수정 후 다시 제출" : "신청"}했습니다.`,
+        "admin"
+      )
+
       toast.success(
-        isEditing
-          ? "휴가 신청을 수정하고 다시 신청했습니다."
-          : "휴가 신청이 완료되었습니다."
+        isEditing ? "휴가 신청을 수정하고 다시 제출했습니다." : "휴가 신청이 완료되었습니다."
       )
     } catch (error) {
       console.error(error)
@@ -426,7 +635,7 @@ export default function App() {
     if (!user) return
 
     if (request.userId !== user.uid || request.status !== "PENDING") {
-      toast.error("승인 대기 중인 내 신청만 취소할 수 있습니다.")
+      toast.error("승인 대기 중인 내 요청만 취소할 수 있습니다.")
       return
     }
 
@@ -439,6 +648,12 @@ export default function App() {
       if (editingRequest?.id === request.id) {
         handleRequestModalChange(false)
       }
+
+      await notifyPrivilegedUsers(
+        "휴가 신청이 취소되었습니다",
+        `${user.displayName}님이 ${getLeaveTypeLabel(request.type)} ${formatLeaveAmount(request.daysCount)}일 신청을 취소했습니다.`,
+        "admin"
+      )
 
       toast.success("휴가 신청을 취소했습니다.")
     } catch (error) {
@@ -521,12 +736,17 @@ export default function App() {
         status === "APPROVED" ? "APPROVE_LEAVE" : "REJECT_LEAVE",
         request.userId,
         request.userName,
-        `${getLeaveTypeLabel(request.type)} ${request.daysCount}일 ${status === "APPROVED" ? "승인" : "반려"}`
+        `${getLeaveTypeLabel(request.type)} ${formatLeaveAmount(request.daysCount)}일 ${status === "APPROVED" ? "승인" : "반려"}`
       )
 
-      toast.success(
-        `휴가 요청을 ${status === "APPROVED" ? "승인" : "반려"}했습니다.`
+      await notifyUser(
+        request.userId,
+        status === "APPROVED" ? "휴가 신청이 승인되었습니다" : "휴가 신청이 반려되었습니다",
+        `${getLeaveTypeLabel(request.type)} ${formatLeaveAmount(request.daysCount)}일 신청이 ${status === "APPROVED" ? "승인" : "반려"}되었습니다.`,
+        "dashboard"
       )
+
+      toast.success(`휴가 요청을 ${status === "APPROVED" ? "승인" : "반려"}했습니다.`)
     } catch (error) {
       console.error(error)
       toast.error("처리 중 오류가 발생했습니다.")
@@ -607,10 +827,17 @@ export default function App() {
         "CANCEL_APPROVAL",
         request.userId,
         request.userName,
-        `${getLeaveTypeLabel(request.type)} ${request.daysCount}일 승인 취소 후 승인 대기 중으로 복귀`
+        `${getLeaveTypeLabel(request.type)} ${formatLeaveAmount(request.daysCount)}일 승인 취소 후 승인 대기 중으로 복구`
       )
 
-      toast.success("승인을 취소하고 요청을 승인 대기 중으로 되돌렸습니다.")
+      await notifyUser(
+        request.userId,
+        "휴가 승인이 취소되었습니다",
+        `${getLeaveTypeLabel(request.type)} ${formatLeaveAmount(request.daysCount)}일 신청이 다시 승인 대기 중으로 돌아갔습니다. 내용을 수정하거나 취소할 수 있습니다.`,
+        "dashboard"
+      )
+
+      toast.success("승인을 취소하고 요청을 다시 승인 대기 중으로 돌렸습니다.")
     } catch (error) {
       console.error(error)
       toast.error("승인 취소 중 오류가 발생했습니다.")
@@ -648,7 +875,14 @@ export default function App() {
         "GRANT_COMP",
         selectedUserForGrant.uid,
         selectedUserForGrant.displayName,
-        `대체휴일 ${amount}일 부여`
+        `대체휴일 ${formatLeaveAmount(amount)}일 부여`
+      )
+
+      await notifyUser(
+        selectedUserForGrant.uid,
+        "대체휴일이 부여되었습니다",
+        `${formatLeaveAmount(amount)}일의 대체휴일이 추가되었습니다.`,
+        "dashboard"
       )
 
       setIsGrantModalOpen(false)
@@ -667,9 +901,7 @@ export default function App() {
     const formData = new FormData(event.currentTarget)
     const joinDate = String(formData.get("joinDate") ?? "")
     const totalLeave = Number.parseFloat(String(formData.get("totalLeave") ?? ""))
-    const totalCompLeave = Number.parseFloat(
-      String(formData.get("totalCompLeave") ?? "")
-    )
+    const totalCompLeave = Number.parseFloat(String(formData.get("totalCompLeave") ?? ""))
 
     if (!joinDate || !Number.isFinite(totalLeave) || !Number.isFinite(totalCompLeave)) {
       toast.error("입사일과 연차 정보를 확인해 주세요.")
@@ -677,7 +909,7 @@ export default function App() {
     }
 
     if (totalLeave < 0 || totalCompLeave < 0) {
-      toast.error("연차 값은 음수일 수 없습니다.")
+      toast.error("휴가 값은 음수일 수 없습니다.")
       return
     }
 
@@ -705,7 +937,14 @@ export default function App() {
         "ADJUST_LEAVE",
         selectedUserForAdjust.uid,
         selectedUserForAdjust.displayName,
-        `입사일 ${selectedUserForAdjust.joinDate} -> ${joinDate}, 기본 연차 ${selectedUserForAdjust.totalLeave} -> ${totalLeave}, 대체휴일 ${selectedUserForAdjust.totalCompLeave} -> ${totalCompLeave}`
+        `입사일 ${selectedUserForAdjust.joinDate} -> ${joinDate}, 기본 연차 ${formatLeaveAmount(selectedUserForAdjust.totalLeave)} -> ${formatLeaveAmount(totalLeave)}, 대체휴일 ${formatLeaveAmount(selectedUserForAdjust.totalCompLeave)} -> ${formatLeaveAmount(totalCompLeave)}`
+      )
+
+      await notifyUser(
+        selectedUserForAdjust.uid,
+        "휴가 기준이 조정되었습니다",
+        "입사일 또는 휴가 수치가 변경되었습니다. 연차 발생 내역을 확인해 주세요.",
+        "dashboard"
       )
 
       setIsAdjustModalOpen(false)
@@ -744,6 +983,13 @@ export default function App() {
         `권한 변경 ${getRoleLabel(selectedUserForRole.role)} -> ${getRoleLabel(role)}`
       )
 
+      await notifyUser(
+        selectedUserForRole.uid,
+        "권한이 변경되었습니다",
+        `현재 권한이 ${getRoleLabel(role)}(으)로 변경되었습니다.`,
+        "dashboard"
+      )
+
       setIsRoleModalOpen(false)
       setSelectedUserForRole(null)
       toast.success("권한을 변경했습니다.")
@@ -752,7 +998,6 @@ export default function App() {
       toast.error("권한 변경 중 오류가 발생했습니다.")
     }
   }
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
@@ -767,17 +1012,15 @@ export default function App() {
         <Toaster position="top-center" />
         <div className="w-full max-w-md rounded-3xl border bg-white p-10 text-center shadow-sm">
           <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">
-              Tips Leave Manager
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">Tips Leave Manager</p>
             <h1 className="text-3xl font-bold tracking-tight">
               연차와 휴가를
               <br />
-              한 화면에서 관리해요
+              한 화면에서 관리해 보세요
             </h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Google 계정으로 로그인하면 개인 휴가 신청과 회사 휴가 현황 확인을
-              바로 시작할 수 있습니다.
+              Google 계정으로 로그인하면 개인 휴가 신청, 회사 전체 휴가 현황, 연차 발생
+              내역까지 바로 확인할 수 있습니다.
             </p>
           </div>
           <Button onClick={handleLogin} size="lg" className="mt-8 w-full">
@@ -794,9 +1037,7 @@ export default function App() {
       <nav className="sticky top-0 z-40 border-b bg-white/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
-            <span className="text-xl font-bold tracking-tight">
-              Tips Leave Manager
-            </span>
+            <span className="text-xl font-bold tracking-tight">Tips Leave Manager</span>
             <div className="hidden items-center gap-1 md:flex">
               <NavButton
                 active={activeTab === "dashboard"}
@@ -821,12 +1062,69 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Popover open={isNotificationOpen} onOpenChange={handleNotificationOpenChange}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative text-muted-foreground hover:text-black"
+                  />
+                }
+              >
+                <Bell size={18} />
+                {unreadNotificationCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[10px] text-white">
+                    {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                  </span>
+                )}
+                <span className="sr-only">알림 열기</span>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end" sideOffset={12}>
+                <PopoverHeader className="border-b px-4 py-3">
+                  <PopoverTitle>알림</PopoverTitle>
+                </PopoverHeader>
+                <div className="max-h-96 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-muted-foreground">
+                      아직 받은 알림이 없습니다.
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        onClick={() => {
+                          if (notification.linkTab) {
+                            setActiveTab(notification.linkTab)
+                          }
+                          setIsNotificationOpen(false)
+                        }}
+                        className="flex w-full flex-col gap-1 border-b px-4 py-3 text-left transition-colors hover:bg-muted/50"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm font-medium">{notification.title}</p>
+                          {!notification.readAt && (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
+                          )}
+                        </div>
+                        <p className="text-sm leading-5 text-muted-foreground">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(notification.createdAt)}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {getRoleLabel(user.role)}
-                </p>
+                <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
               </div>
               <Avatar className="h-8 w-8 border">
                 <AvatarImage
@@ -853,6 +1151,7 @@ export default function App() {
             user={user}
             requests={requests}
             requestReasons={requestReasons}
+            accrualHistory={accrualHistory}
             editingRequest={editingRequest}
             isRequestModalOpen={isRequestModalOpen}
             onRequestModalChange={handleRequestModalChange}

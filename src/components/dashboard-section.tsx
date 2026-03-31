@@ -29,14 +29,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { LeaveAccrualHistoryEntry, LeaveRequest, User } from "../types"
 import { getLeaveTypeLabel } from "../lib/utils"
-import { LeaveRequest, User } from "../types"
 import { StatCard, StatusBadge, formatDays } from "./leave-common"
 
 export function DashboardSection({
   user,
   requests,
   requestReasons,
+  accrualHistory,
   editingRequest,
   isRequestModalOpen,
   onRequestModalChange,
@@ -49,6 +50,7 @@ export function DashboardSection({
   user: User
   requests: LeaveRequest[]
   requestReasons: Record<string, string>
+  accrualHistory: LeaveAccrualHistoryEntry[]
   editingRequest: LeaveRequest | null
   isRequestModalOpen: boolean
   onRequestModalChange: (open: boolean) => void
@@ -249,7 +251,6 @@ export function DashboardSection({
         </div>
 
         <div className="space-y-6">
-          <h2 className="text-xl font-bold tracking-tight">연차 누적 현황</h2>
           <div className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
             <div className="space-y-1">
               <p className="text-sm font-semibold">다음 자동 연차 발생일</p>
@@ -286,6 +287,32 @@ export function DashboardSection({
             <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs leading-5 text-muted-foreground">
               이월 연차는 기한 없이 계속 누적되며, 연차 사용 시 가장 오래된
               이월 연차부터 먼저 차감됩니다.
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">연차 발생 내역</p>
+              <p className="text-sm text-muted-foreground">
+                입사일과 매년 입사일 기준 자동 발생 내역입니다.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {accrualHistory.map((entry) => (
+                <div
+                  key={`${entry.kind}-${entry.accrualDate}`}
+                  className="flex items-center justify-between rounded-2xl bg-muted/40 px-3 py-2 text-sm"
+                >
+                  <div>
+                    <p className="font-medium">{entry.accrualDate}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.kind === "INITIAL" ? "입사 초기 부여" : "정기 자동 발생"}
+                    </p>
+                  </div>
+                  <span className="font-medium">{formatDays(entry.grantedDays)}일</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -1,5 +1,20 @@
-import React from "react"
+import React, { useMemo, useState } from "react"
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from "date-fns"
+import { ko } from "date-fns/locale"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -8,9 +23,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getRequestsForDate } from "../lib/leave-calendar"
 import { formatDate, getLeaveTypeLabel } from "../lib/utils"
 import { LeaveRequest } from "../types"
 import { StatusBadge, formatDays } from "./leave-common"
+
+const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"]
+
+function getCalendarItems(requests: LeaveRequest[], isoDate: string) {
+  return getRequestsForDate(requests, isoDate).slice(0, 3)
+}
+
+function getCalendarItemClass(status: LeaveRequest["status"]) {
+  switch (status) {
+    case "APPROVED":
+      return "bg-green-50 text-green-700"
+    case "PENDING":
+      return "bg-yellow-50 text-yellow-700"
+    default:
+      return "bg-muted text-foreground"
+  }
+}
 
 export function HistorySection({
   allRequests,
@@ -21,9 +54,114 @@ export function HistorySection({
   requestReasons: Record<string, string>
   showLeaveReason: boolean
 }) {
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()))
+
+  const calendarDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(visibleMonth), { weekStartsOn: 0 })
+    const end = endOfWeek(endOfMonth(visibleMonth), { weekStartsOn: 0 })
+    const days: Date[] = []
+
+    let current = start
+    while (current <= end) {
+      days.push(current)
+      current = addDays(current, 1)
+    }
+
+    return days
+  }, [visibleMonth])
+
   return (
     <section className="space-y-6">
-      <h2 className="text-2xl font-bold tracking-tight">전사 휴가 현황</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight">전사 휴가 현황</h2>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
+          >
+            <ChevronLeft size={16} />
+          </Button>
+          <div className="min-w-32 text-center text-sm font-medium">
+            {format(visibleMonth, "yyyy년 M월", { locale: ko })}
+          </div>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+          >
+            <ChevronRight size={16} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-7 gap-2">
+          {DAY_LABELS.map((label) => (
+            <div
+              key={label}
+              className="rounded-2xl bg-muted/50 px-3 py-2 text-center text-sm font-medium text-muted-foreground"
+            >
+              {label}
+            </div>
+          ))}
+
+          {calendarDays.map((day) => {
+            const isoDate = format(day, "yyyy-MM-dd")
+            const visibleItems = getCalendarItems(allRequests, isoDate)
+            const totalItems = getRequestsForDate(allRequests, isoDate).length
+
+            return (
+              <div
+                key={isoDate}
+                className={`min-h-36 rounded-2xl border p-3 ${
+                  isSameMonth(day, visibleMonth) ? "bg-white" : "bg-muted/20"
+                } ${isToday(day) ? "border-black" : "border-border"}`}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span
+                    className={`text-sm font-medium ${
+                      isSameMonth(day, visibleMonth)
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  {isToday(day) && (
+                    <span className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white">
+                      오늘
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  {visibleItems.map((request) => (
+                    <div
+                      key={`${isoDate}-${request.id}`}
+                      className={`rounded-xl px-2 py-1 text-[11px] leading-4 ${getCalendarItemClass(request.status)}`}
+                    >
+                      <div className="font-medium">{request.userName}</div>
+                      <div>{getLeaveTypeLabel(request.type)}</div>
+                    </div>
+                  ))}
+                  {totalItems > visibleItems.length && (
+                    <div className="px-1 text-[11px] text-muted-foreground">
+                      +{totalItems - visibleItems.length}건 더 있음
+                    </div>
+                  )}
+                  {totalItems === 0 && (
+                    <div className="px-1 text-[11px] text-muted-foreground">
+                      일정 없음
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="rounded-3xl border bg-white shadow-sm">
         <Table>
           <TableHeader>

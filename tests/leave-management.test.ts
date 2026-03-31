@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import {
   consumeAnnualLeave,
   consumeAnnualLeaveWithAdjustment,
+  getAccrualHistory,
   getAvailableAnnualLeave,
   restoreAnnualLeave,
   syncAnnualLeaveIfNeeded,
@@ -112,4 +113,21 @@ test("consumeAnnualLeaveWithAdjustment records oldest-first usage and restoreAnn
   ])
   assert.equal(restored.usedLeave, 2)
   assert.equal(getAvailableAnnualLeave(restored), getAvailableAnnualLeave(user))
+})
+
+test("getAccrualHistory lists the initial grant and each anniversary grant", () => {
+  const user = normalizeUserRecord({
+    uid: "user-5",
+    email: "user5@example.com",
+    displayName: "Tester 5",
+    role: "EMPLOYEE",
+    joinDate: "2023-04-01",
+    nextLeaveAccrualDate: "2026-04-01",
+  })
+
+  assert.deepEqual(getAccrualHistory(user), [
+    { accrualDate: "2025-04-01", grantedDays: 15, kind: "ANNIVERSARY" },
+    { accrualDate: "2024-04-01", grantedDays: 15, kind: "ANNIVERSARY" },
+    { accrualDate: "2023-04-01", grantedDays: 11, kind: "INITIAL" },
+  ])
 })

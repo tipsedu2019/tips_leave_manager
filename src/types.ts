@@ -10,6 +10,8 @@ export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED"
 
 export type UserRole = "ADMIN" | "MANAGER" | "EMPLOYEE"
 
+export type AppTab = "dashboard" | "history" | "admin"
+
 export interface CarryoverLeave {
   year: number
   remainingDays: number
@@ -24,6 +26,16 @@ export interface LeaveApprovalAdjustment {
   currentYearDays?: number
   carryoverUsage?: CarryoverUsage[]
   compDays?: number
+}
+
+export interface LeaveAccrualHistoryEntry {
+  accrualDate: string
+  grantedDays: number
+  kind: "INITIAL" | "ANNIVERSARY"
+}
+
+export interface LeaveAccrualEvent extends LeaveAccrualHistoryEntry {
+  carriedOverDays: number
 }
 
 export interface User {
@@ -53,6 +65,17 @@ export interface LeaveRequest {
   adminComment?: string
   daysCount: number
   approvalAdjustment?: LeaveApprovalAdjustment
+}
+
+export interface AppNotification {
+  id: string
+  userId: string
+  actorId: string
+  title: string
+  message: string
+  createdAt: string
+  readAt?: string
+  linkTab?: AppTab
 }
 
 export interface AdminLog {
