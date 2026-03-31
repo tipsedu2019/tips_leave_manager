@@ -7,6 +7,21 @@ type UserRecordInput = Partial<User> &
     joinDate?: string
   }
 
+type UserRecordOverrides = Partial<
+  Pick<
+    User,
+    | "displayName"
+    | "role"
+    | "totalLeave"
+    | "usedLeave"
+    | "totalCompLeave"
+    | "usedCompLeave"
+    | "joinDate"
+    | "carryoverLeaves"
+    | "nextLeaveAccrualDate"
+  >
+>
+
 function getNumberOrFallback(value: number | undefined, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback
 }
@@ -48,4 +63,11 @@ export function normalizeUserRecord(user: UserRecordInput): User {
     nextLeaveAccrualDate:
       user.nextLeaveAccrualDate ?? getNextLeaveAccrualDate(joinDate),
   }
+}
+
+export function mergeUserRecord(user: User, overrides: UserRecordOverrides): User {
+  return normalizeUserRecord({
+    ...user,
+    ...overrides,
+  })
 }

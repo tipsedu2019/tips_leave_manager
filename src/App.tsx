@@ -43,7 +43,7 @@ import {
   formatDateTime,
   getLeaveTypeLabel,
 } from "./lib/utils"
-import { normalizeUserRecord } from "./lib/user-records"
+import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
   consumeAnnualLeaveWithAdjustment,
@@ -222,12 +222,7 @@ export default function App() {
     const result = syncAnnualLeaveIfNeeded(candidate)
 
     if (result.changed) {
-      await updateDoc(doc(db, "users", candidate.uid), {
-        totalLeave: result.user.totalLeave,
-        usedLeave: result.user.usedLeave,
-        carryoverLeaves: result.user.carryoverLeaves,
-        nextLeaveAccrualDate: result.user.nextLeaveAccrualDate,
-      })
+      await setDoc(doc(db, "users", candidate.uid), result.user)
 
       await createNotifications(
         result.events.map((event) => ({
@@ -895,18 +890,15 @@ export default function App() {
     }
 
     try {
-      const updatedTargetUser = {
-        ...selectedUserForGrant,
+      const updatedTargetUser = mergeUserRecord(selectedUserForGrant, {
         totalCompLeave: selectedUserForGrant.totalCompLeave + amount,
-      }
+      })
 
       const grantedAt = new Date().toISOString()
       const grantRef = doc(collection(db, "compLeaveGrants"))
       const batch = writeBatch(db)
 
-      batch.update(doc(db, "users", selectedUserForGrant.uid), {
-        totalCompLeave: updatedTargetUser.totalCompLeave,
-      })
+      batch.set(doc(db, "users", selectedUserForGrant.uid), updatedTargetUser)
       batch.set(grantRef, {
         id: grantRef.id,
         userId: selectedUserForGrant.uid,
@@ -968,21 +960,17 @@ export default function App() {
     const nextLeaveAccrualDate = getNextLeaveAccrualDate(joinDate)
 
     try {
-      await updateDoc(doc(db, "users", selectedUserForAdjust.uid), {
+      const updatedTargetUser = mergeUserRecord(selectedUserForAdjust, {
         joinDate,
         totalLeave,
         totalCompLeave,
         nextLeaveAccrualDate,
       })
 
+      await setDoc(doc(db, "users", selectedUserForAdjust.uid), updatedTargetUser)
+
       if (user?.uid === selectedUserForAdjust.uid) {
-        setUser({
-          ...user,
-          joinDate,
-          totalLeave,
-          totalCompLeave,
-          nextLeaveAccrualDate,
-        })
+        setUser(updatedTargetUser)
       }
 
       await logAdminAction(
@@ -1022,10 +1010,12 @@ export default function App() {
     }
 
     try {
-      await updateDoc(doc(db, "users", selectedUserForRole.uid), { role })
+      const updatedTargetUser = mergeUserRecord(selectedUserForRole, { role })
+
+      await setDoc(doc(db, "users", selectedUserForRole.uid), updatedTargetUser)
 
       if (user?.uid === selectedUserForRole.uid) {
-        setUser({ ...user, role })
+        setUser(updatedTargetUser)
       }
 
       await logAdminAction(
