@@ -315,6 +315,14 @@ export default function App() {
         return
       }
 
+      const blockedUserSnapshot = await getDoc(doc(db, "blockedUsers", firebaseUser.uid))
+      if (blockedUserSnapshot.exists()) {
+        await signOut(auth)
+        toast.error("삭제된 직원 계정입니다. 관리자에게 문의해 주세요.")
+        setLoading(false)
+        return
+      }
+
       const userRef = doc(db, "users", firebaseUser.uid)
       const snapshot = await getDoc(userRef)
 
@@ -1042,6 +1050,91 @@ export default function App() {
       toast.error("권한 변경 중 오류가 발생했습니다.")
     }
   }
+
+  const deleteUserAccount = async (member: User) => {
+    if (!user) return
+
+    if (member.uid === user.uid) {
+      toast.error("현재 로그인한 계정은 삭제할 수 없습니다.")
+      return
+    }
+
+    if (member.role !== "EMPLOYEE") {
+      toast.error("직원 계정만 삭제할 수 있습니다.")
+      return
+    }
+
+    if (
+      !window.confirm(
+        `${member.displayName} 직원을 삭제할까요?\n휴가 신청, 사유, 알림, 대체휴일 기록이 함께 삭제되고 다시 로그인할 수 없습니다.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      const [requestsSnapshot, reasonsSnapshot, notificationsSnapshot, grantsSnapshot] =
+        await Promise.all([
+          getDocs(query(collection(db, "leaveRequests"), where("userId", "==", member.uid))),
+          getDocs(
+            query(collection(db, "leaveRequestReasons"), where("userId", "==", member.uid))
+          ),
+          getDocs(query(collection(db, "notifications"), where("userId", "==", member.uid))),
+          getDocs(query(collection(db, "compLeaveGrants"), where("userId", "==", member.uid))),
+        ])
+
+      const batch = writeBatch(db)
+
+      batch.set(doc(db, "blockedUsers", member.uid), {
+        uid: member.uid,
+        email: member.email,
+        displayName: member.displayName,
+        deletedAt: new Date().toISOString(),
+        deletedBy: user.uid,
+      })
+      batch.delete(doc(db, "users", member.uid))
+
+      requestsSnapshot.docs.forEach((requestDoc) => {
+        batch.delete(requestDoc.ref)
+      })
+      reasonsSnapshot.docs.forEach((reasonDoc) => {
+        batch.delete(reasonDoc.ref)
+      })
+      notificationsSnapshot.docs.forEach((notificationDoc) => {
+        batch.delete(notificationDoc.ref)
+      })
+      grantsSnapshot.docs.forEach((grantDoc) => {
+        batch.delete(grantDoc.ref)
+      })
+
+      await batch.commit()
+
+      await logAdminAction(
+        "DELETE_USER",
+        member.uid,
+        member.displayName,
+        "직원 계정과 관련 휴가 데이터를 삭제하고 접근을 차단함"
+      )
+
+      if (selectedUserForGrant?.uid === member.uid) {
+        setSelectedUserForGrant(null)
+        setIsGrantModalOpen(false)
+      }
+      if (selectedUserForAdjust?.uid === member.uid) {
+        setSelectedUserForAdjust(null)
+        setIsAdjustModalOpen(false)
+      }
+      if (selectedUserForRole?.uid === member.uid) {
+        setSelectedUserForRole(null)
+        setIsRoleModalOpen(false)
+      }
+
+      toast.success("직원을 삭제했습니다.")
+    } catch (error) {
+      console.error(error)
+      toast.error("직원 삭제 중 오류가 발생했습니다.")
+    }
+  }
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
@@ -1243,6 +1336,7 @@ export default function App() {
               setSelectedUserForGrant(open ? member ?? null : null)
             }}
             onGrantCompLeave={grantCompLeave}
+            onDeleteUser={(member) => void deleteUserAccount(member)}
             onApproveRequest={(request) => void handleAdminAction(request, "APPROVED")}
             onRejectRequest={(request) => void handleAdminAction(request, "REJECTED")}
             onCancelApproval={(request) => void cancelApproval(request)}

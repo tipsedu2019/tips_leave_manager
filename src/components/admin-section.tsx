@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Check, Edit2, Gift, RotateCcw, ShieldPlus, X } from "lucide-react"
+import { Check, Edit2, Gift, RotateCcw, ShieldPlus, Trash2, X } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -64,6 +64,7 @@ export function AdminSection({
   selectedUserForGrant,
   onGrantModalChange,
   onGrantCompLeave,
+  onDeleteUser,
   onApproveRequest,
   onRejectRequest,
   onCancelApproval,
@@ -85,6 +86,7 @@ export function AdminSection({
   selectedUserForGrant: User | null
   onGrantModalChange: (open: boolean, member?: User) => void
   onGrantCompLeave: (event: React.FormEvent<HTMLFormElement>) => void
+  onDeleteUser: (member: User) => void
   onApproveRequest: (request: LeaveRequest) => void
   onRejectRequest: (request: LeaveRequest) => void
   onCancelApproval: (request: LeaveRequest) => void
@@ -432,6 +434,18 @@ export function AdminSection({
                           </form>
                         </DialogContent>
                       </Dialog>
+
+                      {member.role === "EMPLOYEE" && member.uid !== user.uid && (
+                        <Button
+                          size="icon-sm"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50"
+                          title="직원 삭제"
+                          onClick={() => onDeleteUser(member)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

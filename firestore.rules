@@ -2,7 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null &&
+        !exists(/databases/$(database)/documents/blockedUsers/$(request.auth.uid));
     }
 
     function isOwner(userId) {
@@ -199,6 +200,10 @@ service cloud.firestore {
     match /adminLogs/{logId} {
       allow read: if isPrivileged();
       allow create: if isPrivileged();
+    }
+
+    match /blockedUsers/{userId} {
+      allow read, create, delete: if isPrivileged();
     }
 
     match /compLeaveGrants/{grantId} {

@@ -126,6 +126,8 @@ export function getAdminActionLabel(action: AdminLog["action"]) {
       return "휴가 반려"
     case "CANCEL_APPROVAL":
       return "승인 취소"
+    case "DELETE_USER":
+      return "직원 삭제"
     case "SET_ROLE":
       return "권한 변경"
     default:

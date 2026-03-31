@@ -110,6 +110,7 @@ export interface AdminLog {
     | "APPROVE_LEAVE"
     | "REJECT_LEAVE"
     | "CANCEL_APPROVAL"
+    | "DELETE_USER"
     | "SET_ROLE"
   details: string
   createdAt: string
