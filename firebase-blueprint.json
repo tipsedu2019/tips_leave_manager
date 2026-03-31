@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "사용자 정보 및 연차 현황",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "사용자 고유 ID" },
+        "email": { "type": "string", "format": "email", "description": "사용자 이메일" },
+        "displayName": { "type": "string", "description": "사용자 이름" },
+        "role": { "type": "string", "enum": ["ADMIN", "EMPLOYEE"], "description": "사용자 권한" },
+        "totalLeave": { "type": "number", "description": "총 연차 일수" },
+        "usedLeave": { "type": "number", "description": "사용된 연차 일수" },
+        "totalCompLeave": { "type": "number", "description": "총 대체휴일 일수" },
+        "usedCompLeave": { "type": "number", "description": "사용된 대체휴일 일수" },
+        "joinDate": { "type": "string", "format": "date", "description": "입사일" }
+      },
+      "required": ["uid", "email", "displayName", "role", "totalLeave", "usedLeave", "totalCompLeave", "usedCompLeave", "joinDate"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "연차/휴가 신청 정보",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "신청 고유 ID" },
+        "userId": { "type": "string", "description": "신청자 ID" },
+        "userName": { "type": "string", "description": "신청자 이름" },
+        "type": { "type": "string", "enum": ["ANNUAL", "HALF_DAY", "SICK", "SPECIAL", "COMPENSATORY", "OTHER"], "description": "휴가 종류" },
+        "startDate": { "type": "string", "format": "date", "description": "시작일" },
+        "endDate": { "type": "string", "format": "date", "description": "종료일" },
+        "reason": { "type": "string", "description": "사유" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"], "description": "승인 상태" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "신청 일시" },
+        "adminComment": { "type": "string", "description": "관리자 코멘트" },
+        "daysCount": { "type": "number", "description": "총 휴가 일수" }
+      },
+      "required": ["id", "userId", "userName", "type", "startDate", "endDate", "reason", "status", "createdAt", "daysCount"]
+    },
+    "AdminLog": {
+      "title": "AdminLog",
+      "description": "관리자 작업 로그",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "로그 고유 ID" },
+        "adminId": { "type": "string", "description": "관리자 ID" },
+        "adminName": { "type": "string", "description": "관리자 이름" },
+        "targetUserId": { "type": "string", "description": "대상 사용자 ID" },
+        "targetUserName": { "type": "string", "description": "대상 사용자 이름" },
+        "action": { "type": "string", "enum": ["GRANT_COMP", "ADJUST_LEAVE", "SYNC_LEAVE", "APPROVE_LEAVE", "REJECT_LEAVE"], "description": "작업 종류" },
+        "details": { "type": "string", "description": "상세 내용" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "작업 일시" }
+      },
+      "required": ["id", "adminId", "adminName", "targetUserId", "targetUserName", "action", "details", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "사용자 프로필 컬렉션"
+    },
+    "/leaveRequests/{requestId}": {
+      "schema": "LeaveRequest",
+      "description": "연차 신청 컬렉션"
+    },
+    "/adminLogs/{logId}": {
+      "schema": "AdminLog",
+      "description": "관리자 작업 로그 컬렉션"
+    }
+  }
+}

@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPrivileged() {
+      return isAuthenticated() &&
+        (
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMIN', 'MANAGER']
+          ) ||
+          (
+            request.auth.token.email == "yeoyuasset@gmail.com" &&
+            request.auth.token.email_verified == true
+          )
+        );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll([
+               'uid',
+               'email',
+               'displayName',
+               'role',
+               'totalLeave',
+               'usedLeave',
+               'totalCompLeave',
+               'usedCompLeave',
+               'joinDate',
+               'carryoverLeaves',
+               'nextLeaveAccrualDate'
+             ]) &&
+             data.uid is string &&
+             data.email is string &&
+             data.displayName is string &&
+             data.role in ['ADMIN', 'MANAGER', 'EMPLOYEE'] &&
+             data.totalLeave is number &&
+             data.usedLeave is number &&
+             data.totalCompLeave is number &&
+             data.usedCompLeave is number &&
+             data.joinDate is string &&
+             data.carryoverLeaves is list &&
+             data.nextLeaveAccrualDate is string;
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll([
+               'id',
+               'userId',
+               'userName',
+               'type',
+               'startDate',
+               'endDate',
+               'status',
+               'createdAt',
+               'daysCount'
+             ]) &&
+             data.id is string &&
+             data.userId is string &&
+             data.userName is string &&
+             data.startDate is string &&
+             data.endDate is string &&
+             data.createdAt is string &&
+             data.type in ['ANNUAL', 'HALF_DAY', 'SICK', 'SPECIAL', 'COMPENSATORY', 'OTHER'] &&
+             data.status == 'PENDING' &&
+             data.daysCount is number;
+    }
+
+    function isValidLeaveReason(data) {
+      return data.keys().hasAll(['requestId', 'userId', 'reason', 'createdAt']) &&
+             data.requestId is string &&
+             data.userId is string &&
+             data.reason is string &&
+             data.createdAt is string;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isPrivileged() && isValidUser(request.resource.data)) ||
+        (isOwner(userId) && request.resource.data.role == resource.data.role && isValidUser(request.resource.data));
+    }
+
+    match /leaveRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidLeaveRequest(request.resource.data);
+      allow update: if isPrivileged();
+      allow delete: if isPrivileged();
+    }
+
+    match /leaveRequestReasons/{requestId} {
+      allow read: if isPrivileged();
+      allow create: if (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidLeaveReason(request.resource.data)
+      ) || (
+        isPrivileged() &&
+        isValidLeaveReason(request.resource.data)
+      );
+      allow update: if isPrivileged();
+      allow delete: if isPrivileged();
+    }
+
+    match /adminLogs/{logId} {
+      allow read: if isPrivileged();
+      allow create: if isPrivileged();
+    }
+  }
+}
