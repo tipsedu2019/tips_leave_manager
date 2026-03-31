@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { LeaveAccrualHistoryEntry, LeaveRequest, User } from "../types"
+import { LeaveGrantHistoryEntry, LeaveRequest, User } from "../types"
 import { getLeaveTypeLabel } from "../lib/utils"
 import { StatCard, StatusBadge, formatDays } from "./leave-common"
 
@@ -37,7 +37,7 @@ export function DashboardSection({
   user,
   requests,
   requestReasons,
-  accrualHistory,
+  grantHistory,
   editingRequest,
   isRequestModalOpen,
   onRequestModalChange,
@@ -50,7 +50,7 @@ export function DashboardSection({
   user: User
   requests: LeaveRequest[]
   requestReasons: Record<string, string>
-  accrualHistory: LeaveAccrualHistoryEntry[]
+  grantHistory: LeaveGrantHistoryEntry[]
   editingRequest: LeaveRequest | null
   isRequestModalOpen: boolean
   onRequestModalChange: (open: boolean) => void
@@ -292,25 +292,27 @@ export function DashboardSection({
 
           <div className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
             <div className="space-y-1">
-              <p className="text-sm font-semibold">연차 발생 내역</p>
+              <p className="text-sm font-semibold">연차/휴가 발생 내역</p>
               <p className="text-sm text-muted-foreground">
-                입사일과 매년 입사일 기준 자동 발생 내역입니다.
+                연차 자동 발생과 대체휴일 부여 내역을 함께 확인할 수 있습니다.
               </p>
             </div>
 
             <div className="space-y-2">
-              {accrualHistory.map((entry) => (
+              {grantHistory.map((entry) => (
                 <div
-                  key={`${entry.kind}-${entry.accrualDate}`}
+                  key={entry.id}
                   className="flex items-center justify-between rounded-2xl bg-muted/40 px-3 py-2 text-sm"
                 >
                   <div>
-                    <p className="font-medium">{entry.accrualDate}</p>
+                    <p className="font-medium">{entry.date}</p>
                     <p className="text-xs text-muted-foreground">
-                      {entry.kind === "INITIAL" ? "입사 초기 부여" : "정기 자동 발생"}
+                      {entry.category === "ANNUAL"
+                        ? entry.description
+                        : `${entry.description} · ${entry.workDate} 근무분`}
                     </p>
                   </div>
-                  <span className="font-medium">{formatDays(entry.grantedDays)}일</span>
+                  <span className="font-medium">{formatDays(entry.days)}일</span>
                 </div>
               ))}
             </div>

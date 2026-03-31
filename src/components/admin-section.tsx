@@ -414,6 +414,15 @@ export function AdminSection({
                                   required
                                 />
                               </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor="workDate">근무 기준일</Label>
+                                <Input
+                                  id="workDate"
+                                  name="workDate"
+                                  type="date"
+                                  required
+                                />
+                              </div>
                             </div>
                             <DialogFooter>
                               <Button type="submit" className="w-full">

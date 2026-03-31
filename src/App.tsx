@@ -33,6 +33,7 @@ import {
   AdminLog,
   AppNotification,
   AppTab,
+  CompLeaveGrant,
   LeaveRequest,
   LeaveType,
   User,
@@ -46,9 +47,9 @@ import { normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
   consumeAnnualLeaveWithAdjustment,
-  getAccrualHistory,
   getAvailableAnnualLeave,
   getCarryoverBalance,
+  getLeaveGrantHistory,
   getNextLeaveAccrualDate,
   restoreAnnualLeave,
   syncAnnualLeaveIfNeeded,
@@ -86,6 +87,7 @@ export default function App() {
   const [allRequests, setAllRequests] = useState<LeaveRequest[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([])
+  const [compLeaveGrants, setCompLeaveGrants] = useState<CompLeaveGrant[]>([])
   const [requestReasons, setRequestReasons] = useState<Record<string, string>>({})
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
@@ -104,7 +106,10 @@ export default function App() {
   const showLeaveReason = user ? canViewLeaveReason(user.role) : false
   const availableAnnualLeave = user ? getAvailableAnnualLeave(user) : 0
   const carryoverBalance = user ? getCarryoverBalance(user) : 0
-  const accrualHistory = useMemo(() => (user ? getAccrualHistory(user) : []), [user])
+  const grantHistory = useMemo(
+    () => (user ? getLeaveGrantHistory(user, compLeaveGrants) : []),
+    [compLeaveGrants, user]
+  )
   const unreadNotificationCount = useMemo(
     () => notifications.filter((notification) => !notification.readAt).length,
     [notifications]
@@ -300,6 +305,7 @@ export default function App() {
         setAllRequests([])
         setAllUsers([])
         setAdminLogs([])
+        setCompLeaveGrants([])
         setRequestReasons({})
         setNotifications([])
         setEditingRequest(null)
@@ -394,6 +400,29 @@ export default function App() {
       )
     })
   }, [canManage, user])
+
+  useEffect(() => {
+    if (!user) {
+      setCompLeaveGrants([])
+      return
+    }
+
+    const grantsQuery = query(
+      collection(db, "compLeaveGrants"),
+      where("userId", "==", user.uid)
+    )
+
+    return onSnapshot(grantsQuery, (snapshot) => {
+      const nextGrants = snapshot.docs.map((grantDoc) => ({
+        id: grantDoc.id,
+        ...grantDoc.data(),
+      })) as CompLeaveGrant[]
+
+      setCompLeaveGrants(
+        [...nextGrants].sort((left, right) => right.grantedAt.localeCompare(left.grantedAt))
+      )
+    })
+  }, [user])
 
   useEffect(() => {
     if (!user) {
@@ -846,14 +875,14 @@ export default function App() {
 
   const grantCompLeave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!selectedUserForGrant) return
+    if (!selectedUserForGrant || !user) return
 
-    const amount = Number.parseFloat(
-      String(new FormData(event.currentTarget).get("amount") ?? "")
-    )
+    const formData = new FormData(event.currentTarget)
+    const amount = Number.parseFloat(String(formData.get("amount") ?? ""))
+    const workDate = String(formData.get("workDate") ?? "")
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("부여 일수는 0보다 커야 합니다.")
+    if (!Number.isFinite(amount) || amount <= 0 || !workDate) {
+      toast.error("부여 일수와 근무 기준일을 모두 입력해 주세요.")
       return
     }
 
@@ -863,9 +892,24 @@ export default function App() {
         totalCompLeave: selectedUserForGrant.totalCompLeave + amount,
       }
 
-      await updateDoc(doc(db, "users", selectedUserForGrant.uid), {
+      const grantedAt = new Date().toISOString()
+      const grantRef = doc(collection(db, "compLeaveGrants"))
+      const batch = writeBatch(db)
+
+      batch.update(doc(db, "users", selectedUserForGrant.uid), {
         totalCompLeave: updatedTargetUser.totalCompLeave,
       })
+      batch.set(grantRef, {
+        id: grantRef.id,
+        userId: selectedUserForGrant.uid,
+        amount,
+        workDate,
+        grantedAt,
+        grantedBy: user.uid,
+        grantedByName: user.displayName,
+      })
+
+      await batch.commit()
 
       if (user?.uid === selectedUserForGrant.uid) {
         setUser(updatedTargetUser)
@@ -875,13 +919,13 @@ export default function App() {
         "GRANT_COMP",
         selectedUserForGrant.uid,
         selectedUserForGrant.displayName,
-        `대체휴일 ${formatLeaveAmount(amount)}일 부여`
+        `대체휴일 ${formatLeaveAmount(amount)}일 부여 (${workDate} 근무분)`
       )
 
       await notifyUser(
         selectedUserForGrant.uid,
         "대체휴일이 부여되었습니다",
-        `${formatLeaveAmount(amount)}일의 대체휴일이 추가되었습니다.`,
+        `${formatLeaveAmount(amount)}일의 대체휴일이 추가되었습니다. ${workDate} 근무분입니다.`,
         "dashboard"
       )
 
@@ -1151,7 +1195,7 @@ export default function App() {
             user={user}
             requests={requests}
             requestReasons={requestReasons}
-            accrualHistory={accrualHistory}
+            grantHistory={grantHistory}
             editingRequest={editingRequest}
             isRequestModalOpen={isRequestModalOpen}
             onRequestModalChange={handleRequestModalChange}

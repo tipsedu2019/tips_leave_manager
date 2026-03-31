@@ -120,6 +120,25 @@ service cloud.firestore {
              (!data.keys().hasAny(['linkTab']) || data.linkTab in ['dashboard', 'history', 'admin']);
     }
 
+    function isValidCompLeaveGrant(data) {
+      return data.keys().hasOnly([
+               'id',
+               'userId',
+               'amount',
+               'workDate',
+               'grantedAt',
+               'grantedBy',
+               'grantedByName'
+             ]) &&
+             data.id is string &&
+             data.userId is string &&
+             data.amount is number &&
+             data.workDate is string &&
+             data.grantedAt is string &&
+             data.grantedBy is string &&
+             data.grantedByName is string;
+    }
+
     function requestIsPending(requestId) {
       return exists(/databases/$(database)/documents/leaveRequests/$(requestId)) &&
         get(/databases/$(database)/documents/leaveRequests/$(requestId)).data.status == 'PENDING';
@@ -180,6 +199,13 @@ service cloud.firestore {
     match /adminLogs/{logId} {
       allow read: if isPrivileged();
       allow create: if isPrivileged();
+    }
+
+    match /compLeaveGrants/{grantId} {
+      allow read: if isPrivileged() || isOwner(resource.data.userId);
+      allow create: if isPrivileged() &&
+        request.resource.data.id == grantId &&
+        isValidCompLeaveGrant(request.resource.data);
     }
 
     match /notifications/{notificationId} {

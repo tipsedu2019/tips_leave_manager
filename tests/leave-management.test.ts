@@ -6,6 +6,7 @@ import {
   consumeAnnualLeaveWithAdjustment,
   getAccrualHistory,
   getAvailableAnnualLeave,
+  getLeaveGrantHistory,
   restoreAnnualLeave,
   syncAnnualLeaveIfNeeded,
 } from "../src/lib/leave-management"
@@ -129,5 +130,56 @@ test("getAccrualHistory lists the initial grant and each anniversary grant", () 
     { accrualDate: "2025-04-01", grantedDays: 15, kind: "ANNIVERSARY" },
     { accrualDate: "2024-04-01", grantedDays: 15, kind: "ANNIVERSARY" },
     { accrualDate: "2023-04-01", grantedDays: 11, kind: "INITIAL" },
+  ])
+})
+
+test("getLeaveGrantHistory merges annual accruals with compensatory grants in descending order", () => {
+  const user = normalizeUserRecord({
+    uid: "user-6",
+    email: "user6@example.com",
+    displayName: "Tester 6",
+    role: "EMPLOYEE",
+    joinDate: "2023-04-01",
+    nextLeaveAccrualDate: "2025-04-01",
+  })
+
+  const grantHistory = getLeaveGrantHistory(user, [
+    {
+      id: "grant-1",
+      userId: user.uid,
+      amount: 1,
+      workDate: "2024-05-03",
+      grantedAt: "2024-05-04T09:00:00.000Z",
+      grantedBy: "manager-1",
+      grantedByName: "Manager",
+    },
+  ])
+
+  assert.deepEqual(grantHistory, [
+    {
+      id: "grant-1",
+      date: "2024-05-04",
+      createdAt: "2024-05-04T09:00:00.000Z",
+      category: "COMPENSATORY",
+      days: 1,
+      description: "대체휴일 부여",
+      workDate: "2024-05-03",
+    },
+    {
+      id: "annual-2024-04-01",
+      date: "2024-04-01",
+      createdAt: "2024-04-01T00:00:00.000Z",
+      category: "ANNUAL",
+      days: 15,
+      description: "입사일 기준 자동 발생",
+    },
+    {
+      id: "annual-2023-04-01",
+      date: "2023-04-01",
+      createdAt: "2023-04-01T00:00:00.000Z",
+      category: "ANNUAL",
+      days: 11,
+      description: "입사 초기 부여",
+    },
   ])
 })

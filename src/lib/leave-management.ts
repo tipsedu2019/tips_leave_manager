@@ -1,8 +1,10 @@
 import {
+  CompLeaveGrant,
   CarryoverLeave,
   CarryoverUsage,
   LeaveAccrualEvent,
   LeaveAccrualHistoryEntry,
+  LeaveGrantHistoryEntry,
   LeaveApprovalAdjustment,
   User,
 } from "../types"
@@ -101,6 +103,34 @@ export function getAccrualHistory(
   }
 
   return entries.sort((left, right) => right.accrualDate.localeCompare(left.accrualDate))
+}
+
+export function getLeaveGrantHistory(
+  user: Pick<User, "joinDate" | "nextLeaveAccrualDate">,
+  compLeaveGrants: CompLeaveGrant[]
+) {
+  const annualEntries: LeaveGrantHistoryEntry[] = getAccrualHistory(user).map((entry) => ({
+    id: `annual-${entry.accrualDate}`,
+    date: entry.accrualDate,
+    createdAt: `${entry.accrualDate}T00:00:00.000Z`,
+    category: "ANNUAL",
+    days: entry.grantedDays,
+    description: entry.kind === "INITIAL" ? "입사 초기 부여" : "입사일 기준 자동 발생",
+  }))
+
+  const compEntries: LeaveGrantHistoryEntry[] = compLeaveGrants.map((entry) => ({
+    id: entry.id,
+    date: entry.grantedAt.split("T")[0],
+    createdAt: entry.grantedAt,
+    category: "COMPENSATORY",
+    days: entry.amount,
+    description: "대체휴일 부여",
+    workDate: entry.workDate,
+  }))
+
+  return [...compEntries, ...annualEntries].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt)
+  )
 }
 
 export function syncAnnualLeaveIfNeeded(

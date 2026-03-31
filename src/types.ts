@@ -38,6 +38,26 @@ export interface LeaveAccrualEvent extends LeaveAccrualHistoryEntry {
   carriedOverDays: number
 }
 
+export interface CompLeaveGrant {
+  id: string
+  userId: string
+  amount: number
+  workDate: string
+  grantedAt: string
+  grantedBy: string
+  grantedByName: string
+}
+
+export interface LeaveGrantHistoryEntry {
+  id: string
+  date: string
+  createdAt: string
+  category: "ANNUAL" | "COMPENSATORY"
+  days: number
+  description: string
+  workDate?: string
+}
+
 export interface User {
   uid: string
   email: string
