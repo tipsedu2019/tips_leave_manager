@@ -386,54 +386,61 @@ export default function App() {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
-        setUser(null)
-        setAuthProviderIds([])
-        setRequests([])
-        setAllRequests([])
-        setAllUsers([])
-        setAdminLogs([])
-        setCompLeaveGrants([])
-        setRequestReasons({})
-        setNotifications([])
-        setEditingRequest(null)
-        setIsRequestModalOpen(false)
-        setIsNotificationOpen(false)
-        setLoading(false)
-        return
-      }
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      void (async () => {
+        if (!firebaseUser) {
+          setUser(null)
+          setAuthProviderIds([])
+          setRequests([])
+          setAllRequests([])
+          setAllUsers([])
+          setAdminLogs([])
+          setCompLeaveGrants([])
+          setRequestReasons({})
+          setNotifications([])
+          setEditingRequest(null)
+          setIsRequestModalOpen(false)
+          setIsNotificationOpen(false)
+          setLoading(false)
+          return
+        }
 
-      const blockedUserSnapshot = await getDoc(doc(db, "blockedUsers", firebaseUser.uid))
-      if (blockedUserSnapshot.exists()) {
-        await signOut(auth)
-        toast.error("삭제된 직원 계정입니다. 관리자에게 문의해 주세요.")
-        setLoading(false)
-        return
-      }
+        try {
+          const blockedUserSnapshot = await getDoc(doc(db, "blockedUsers", firebaseUser.uid))
+          if (blockedUserSnapshot.exists()) {
+            await signOut(auth)
+            toast.error("삭제된 직원 계정입니다. 관리자에게 문의해 주세요.")
+            return
+          }
 
-      const userRef = doc(db, "users", firebaseUser.uid)
-      const snapshot = await getDoc(userRef)
+          const userRef = doc(db, "users", firebaseUser.uid)
+          const snapshot = await getDoc(userRef)
 
-      if (snapshot.exists()) {
-        setUser(
-          await syncUserIfNeeded(normalizeFirestoreUser(firebaseUser.uid, snapshot.data()))
-        )
-      } else {
-        const nextUser = buildInitialUserRecord(
-          firebaseUser.uid,
-          firebaseUser.email ?? "",
-          firebaseUser.displayName ?? "사용자"
-        )
-        await setDoc(userRef, nextUser)
-        setUser(nextUser)
-      }
+          if (snapshot.exists()) {
+            setUser(
+              await syncUserIfNeeded(normalizeFirestoreUser(firebaseUser.uid, snapshot.data()))
+            )
+          } else {
+            const nextUser = buildInitialUserRecord(
+              firebaseUser.uid,
+              firebaseUser.email ?? "",
+              firebaseUser.displayName ?? "사용자"
+            )
+            await setDoc(userRef, nextUser)
+            setUser(nextUser)
+          }
 
-      setAuthProviderIds(
-        Array.from(new Set(firebaseUser.providerData.map((provider) => provider.providerId)))
-      )
-
-      setLoading(false)
+          setAuthProviderIds(
+            Array.from(new Set(firebaseUser.providerData.map((provider) => provider.providerId)))
+          )
+        } catch (error) {
+          console.error(error)
+          toast.error("로그인 정보를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+          setUser(null)
+        } finally {
+          setLoading(false)
+        }
+      })()
     })
 
     return () => unsubscribe()

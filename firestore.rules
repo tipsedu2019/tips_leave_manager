@@ -203,7 +203,8 @@ service cloud.firestore {
     }
 
     match /blockedUsers/{userId} {
-      allow read, create, delete: if isPrivileged();
+      allow read: if isPrivileged() || isOwner(userId);
+      allow create, delete: if isPrivileged();
     }
 
     match /compLeaveGrants/{grantId} {
