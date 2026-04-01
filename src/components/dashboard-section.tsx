@@ -15,13 +15,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -80,7 +73,7 @@ export function DashboardSection({
           highlight
         />
         <StatCard
-          title="사용 가능 연차"
+          title="사용 가능한 연차"
           value={availableAnnualLeave}
           unit="일"
           description={`이월 연차 ${formatDays(carryoverBalance)}일 포함`}
@@ -107,36 +100,31 @@ export function DashboardSection({
               <DialogContent className="sm:max-w-[440px]">
                 <form key={editingRequest?.id ?? "create"} onSubmit={onSubmitRequest}>
                   <DialogHeader>
-                    <DialogTitle>
-                      {isEditing ? "휴가 신청 수정" : "휴가 신청"}
-                    </DialogTitle>
+                    <DialogTitle>{isEditing ? "휴가 신청 수정" : "휴가 신청"}</DialogTitle>
                     <DialogDescription>
                       {isEditing
                         ? "내용을 수정하면 승인 대기 중 상태로 다시 제출됩니다."
-                        : "휴가 종류와 기간을 선택해 신청해 주세요. 사유는 관리자와 부관리자만 확인할 수 있습니다."}
+                        : "휴가 종류와 기간을 선택해 신청해 주세요. 사유는 최고관리자와 관리자만 확인할 수 있습니다."}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label htmlFor="type">휴가 종류</Label>
-                      <Select
+                      <select
+                        id="type"
                         name="type"
                         defaultValue={editingRequest?.type ?? "ANNUAL"}
                         required
+                        className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="휴가 종류를 선택해 주세요." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ANNUAL">연차</SelectItem>
-                          <SelectItem value="HALF_DAY">반차</SelectItem>
-                          <SelectItem value="COMPENSATORY">대체휴일</SelectItem>
-                          <SelectItem value="SICK">병가</SelectItem>
-                          <SelectItem value="SPECIAL">경조사</SelectItem>
-                          <SelectItem value="OTHER">기타</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="ANNUAL">연차</option>
+                        <option value="HALF_DAY">반차</option>
+                        <option value="COMPENSATORY">대체휴일</option>
+                        <option value="SICK">병가</option>
+                        <option value="SPECIAL">경조사</option>
+                        <option value="OTHER">기타</option>
+                      </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -237,10 +225,7 @@ export function DashboardSection({
                 ))}
                 {requests.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="h-32 text-center text-muted-foreground"
-                    >
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                       아직 신청한 휴가가 없습니다.
                     </TableCell>
                   </TableRow>
@@ -254,9 +239,7 @@ export function DashboardSection({
           <div className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
             <div className="space-y-1">
               <p className="text-sm font-semibold">다음 자동 연차 발생일</p>
-              <p className="text-sm text-muted-foreground">
-                {user.nextLeaveAccrualDate}
-              </p>
+              <p className="text-sm text-muted-foreground">{user.nextLeaveAccrualDate}</p>
             </div>
 
             <div className="h-px bg-border" />
@@ -271,22 +254,18 @@ export function DashboardSection({
                       className="flex items-center justify-between rounded-2xl bg-muted/40 px-3 py-2 text-sm"
                     >
                       <span>{entry.year}년 발생분</span>
-                      <span className="font-medium">
-                        {formatDays(entry.remainingDays)}일
-                      </span>
+                      <span className="font-medium">{formatDays(entry.remainingDays)}일</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  아직 이월된 연차가 없습니다.
-                </p>
+                <p className="text-sm text-muted-foreground">아직 이월된 연차가 없습니다.</p>
               )}
             </div>
 
             <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              이월 연차는 기한 없이 계속 누적되며, 연차 사용 시 가장 오래된
-              이월 연차부터 먼저 차감됩니다.
+              이월 연차는 기한 없이 계속 누적되며, 연차 사용 시 가장 오래된 이월
+              연차부터 먼저 차감됩니다.
             </div>
           </div>
 
@@ -294,7 +273,7 @@ export function DashboardSection({
             <div className="space-y-1">
               <p className="text-sm font-semibold">연차/휴가 발생 내역</p>
               <p className="text-sm text-muted-foreground">
-                연차 자동 발생과 대체휴일 부여 내역을 함께 확인할 수 있습니다.
+                연차 자동 발생과 대체휴일 부여 내역을 모두 확인할 수 있습니다.
               </p>
             </div>
 

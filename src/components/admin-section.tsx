@@ -17,13 +17,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -183,10 +176,7 @@ export function AdminSection({
               ))}
               {managedRequests.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-32 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                     처리할 휴가 요청이 없습니다.
                   </TableCell>
                 </TableRow>
@@ -229,10 +219,7 @@ export function AdminSection({
               ))}
               {adminLogs.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-32 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                     기록된 작업 이력이 없습니다.
                   </TableCell>
                 </TableRow>
@@ -262,9 +249,7 @@ export function AdminSection({
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <span className="font-medium">{member.displayName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {member.email}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{member.email}</span>
                       <div>
                         <RoleBadge role={member.role} />
                       </div>
@@ -298,16 +283,17 @@ export function AdminSection({
                             <div className="grid gap-4 py-4">
                               <div className="grid gap-2">
                                 <Label htmlFor="role">권한</Label>
-                                <Select name="role" defaultValue={member.role} required>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="권한을 선택해 주세요." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="ADMIN">최고관리자</SelectItem>
-                                    <SelectItem value="MANAGER">부관리자</SelectItem>
-                                    <SelectItem value="EMPLOYEE">직원</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <select
+                                  id="role"
+                                  name="role"
+                                  defaultValue={member.role}
+                                  required
+                                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                                >
+                                  <option value="ADMIN">최고관리자</option>
+                                  <option value="MANAGER">관리자</option>
+                                  <option value="EMPLOYEE">직원</option>
+                                </select>
                               </div>
                             </div>
                             <DialogFooter>
@@ -452,10 +438,7 @@ export function AdminSection({
               ))}
               {allUsers.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-32 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     아직 등록된 직원이 없습니다.
                   </TableCell>
                 </TableRow>

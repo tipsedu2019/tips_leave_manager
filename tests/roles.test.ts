@@ -17,6 +17,6 @@ test("leave reasons are visible only to admin and manager", () => {
 
 test("role labels are localized for display", () => {
   assert.equal(getRoleLabel("ADMIN"), "최고관리자")
-  assert.equal(getRoleLabel("MANAGER"), "부관리자")
+  assert.equal(getRoleLabel("MANAGER"), "관리자")
   assert.equal(getRoleLabel("EMPLOYEE"), "직원")
 })

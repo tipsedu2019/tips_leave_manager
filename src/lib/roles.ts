@@ -1,4 +1,5 @@
 import { UserRole } from "../types"
+import { getRoleLabel as getDisplayRoleLabel } from "./display-labels"
 
 export function isPrivilegedRole(role: UserRole) {
   return role === "ADMIN" || role === "MANAGER"
@@ -9,12 +10,5 @@ export function canViewLeaveReason(role: UserRole) {
 }
 
 export function getRoleLabel(role: UserRole) {
-  switch (role) {
-    case "ADMIN":
-      return "최고관리자"
-    case "MANAGER":
-      return "부관리자"
-    default:
-      return "직원"
-  }
+  return getDisplayRoleLabel(role)
 }

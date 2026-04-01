@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+import { getLeaveTypeLabel as getDisplayLeaveTypeLabel } from "./display-labels"
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -28,20 +30,7 @@ export function formatDateTime(date: string | Date) {
 }
 
 export function getLeaveTypeLabel(type: string) {
-  switch (type) {
-    case "ANNUAL":
-      return "연차"
-    case "HALF_DAY":
-      return "반차"
-    case "SICK":
-      return "병가"
-    case "SPECIAL":
-      return "경조사"
-    case "COMPENSATORY":
-      return "대체휴일"
-    default:
-      return "기타"
-  }
+  return getDisplayLeaveTypeLabel(type)
 }
 
 export function getStatusLabel(status: string) {
