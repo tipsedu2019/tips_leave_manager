@@ -51,6 +51,7 @@ import {
   getUserNameClassName,
   getUserRoleClassName,
 } from "./lib/app-shell"
+import { getLeaveRequestDaysCount, RequestDurationUnit } from "./lib/leave-requests"
 import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
@@ -609,6 +610,9 @@ export default function App() {
     const startDate = String(formData.get("startDate") ?? "")
     const endDate = String(formData.get("endDate") ?? "")
     const reason = String(formData.get("reason") ?? "").trim()
+    const durationUnit = String(
+      formData.get("durationUnit") ?? "FULL_DAY"
+    ) as RequestDurationUnit
 
     if (!type || !startDate || !endDate || !reason) {
       toast.error("휴가 종류, 기간, 사유를 모두 입력해 주세요.")
@@ -625,11 +629,17 @@ export default function App() {
       return
     }
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    const diffDays =
-      Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    const daysCount = type === "HALF_DAY" ? 0.5 : diffDays
+    if (type === "COMPENSATORY" && durationUnit === "HALF_DAY" && startDate !== endDate) {
+      toast.error("諛섏씪 ?泥댄쑕?쇱? ?섎（留??좏깮?????덉뒿?덈떎.")
+      return
+    }
+
+    const daysCount = getLeaveRequestDaysCount({
+      type,
+      startDate,
+      endDate,
+      durationUnit,
+    })
 
     const currentUser = await loadAndSyncUser(user.uid)
     if (!currentUser) {

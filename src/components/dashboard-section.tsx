@@ -29,7 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { LeaveGrantHistoryEntry, LeaveRequest, User } from "../types"
+import {
+  getDefaultRequestDurationUnit,
+  RequestDurationUnit,
+} from "../lib/leave-requests"
+import { LeaveGrantHistoryEntry, LeaveRequest, LeaveType, User } from "../types"
 import { getLeaveTypeLabel } from "../lib/utils"
 import { StatCard, StatusBadge, formatDays } from "./leave-common"
 
@@ -64,6 +68,15 @@ export function DashboardSection({
   const editingReason = editingRequest ? requestReasons[editingRequest.id] ?? "" : ""
   const remainingCompLeave = user.totalCompLeave - user.usedCompLeave
   const pendingRequestCount = requests.filter((request) => request.status === "PENDING").length
+  const [selectedType, setSelectedType] = React.useState<LeaveType>(editingRequest?.type ?? "ANNUAL")
+  const [durationUnit, setDurationUnit] = React.useState<RequestDurationUnit>(
+    getDefaultRequestDurationUnit(editingRequest)
+  )
+
+  React.useEffect(() => {
+    setSelectedType(editingRequest?.type ?? "ANNUAL")
+    setDurationUnit(getDefaultRequestDurationUnit(editingRequest))
+  }, [editingRequest, isRequestModalOpen])
 
   return (
     <section className="space-y-8">
@@ -107,7 +120,8 @@ export function DashboardSection({
                         <select
                           id="type"
                           name="type"
-                          defaultValue={editingRequest?.type ?? "ANNUAL"}
+                          value={selectedType}
+                          onChange={(event) => setSelectedType(event.target.value as LeaveType)}
                           required
                           className="h-10 w-full rounded-2xl border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                         >
@@ -119,6 +133,24 @@ export function DashboardSection({
                           <option value="OTHER">기타</option>
                         </select>
                       </div>
+
+                      {selectedType === "COMPENSATORY" && (
+                        <div className="grid gap-2">
+                          <Label htmlFor="durationUnit">?ъ슜 ?④쐞</Label>
+                          <select
+                            id="durationUnit"
+                            name="durationUnit"
+                            value={durationUnit}
+                            onChange={(event) =>
+                              setDurationUnit(event.target.value as RequestDurationUnit)
+                            }
+                            className="h-10 w-full rounded-2xl border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            <option value="FULL_DAY">?꾩씪</option>
+                            <option value="HALF_DAY">諛섏씪</option>
+                          </select>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
