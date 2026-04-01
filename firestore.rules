@@ -158,6 +158,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data);
       allow update: if (isPrivileged() && isValidUser(request.resource.data)) ||
         (isOwner(userId) && request.resource.data.role == resource.data.role && isValidUser(request.resource.data));
+      allow delete: if isPrivileged();
     }
 
     match /leaveRequests/{requestId} {
