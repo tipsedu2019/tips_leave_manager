@@ -2,8 +2,11 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  HALF_DAY_COMP_MESSAGE,
   getDefaultRequestDurationUnit,
   getLeaveRequestDaysCount,
+  REQUEST_DURATION_FIELD_LABEL,
+  REQUEST_DURATION_UNIT_OPTIONS,
 } from "../src/lib/leave-requests"
 
 test("half day annual leave stays at 0.5 day", () => {
@@ -72,4 +75,13 @@ test("editing keeps full-day mode for regular compensatory requests", () => {
     }),
     "FULL_DAY"
   )
+})
+
+test("duration unit labels stay localized in Korean", () => {
+  assert.equal(REQUEST_DURATION_FIELD_LABEL, "사용 단위")
+  assert.equal(HALF_DAY_COMP_MESSAGE, "반일 대체휴일은 하루만 선택할 수 있습니다.")
+  assert.deepEqual(REQUEST_DURATION_UNIT_OPTIONS, [
+    { value: "FULL_DAY", label: "전일" },
+    { value: "HALF_DAY", label: "반일" },
+  ])
 })

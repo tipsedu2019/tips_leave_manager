@@ -51,7 +51,11 @@ import {
   getUserNameClassName,
   getUserRoleClassName,
 } from "./lib/app-shell"
-import { getLeaveRequestDaysCount, RequestDurationUnit } from "./lib/leave-requests"
+import {
+  HALF_DAY_COMP_MESSAGE,
+  getLeaveRequestDaysCount,
+  RequestDurationUnit,
+} from "./lib/leave-requests"
 import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
@@ -630,7 +634,7 @@ export default function App() {
     }
 
     if (type === "COMPENSATORY" && durationUnit === "HALF_DAY" && startDate !== endDate) {
-      toast.error("諛섏씪 ?泥댄쑕?쇱? ?섎（留??좏깮?????덉뒿?덈떎.")
+      toast.error(HALF_DAY_COMP_MESSAGE)
       return
     }
 

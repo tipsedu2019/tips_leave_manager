@@ -1,6 +1,15 @@
 import { LeaveRequest, LeaveType } from "../types"
 
 export type RequestDurationUnit = "FULL_DAY" | "HALF_DAY"
+export const REQUEST_DURATION_FIELD_LABEL = "사용 단위"
+export const HALF_DAY_COMP_MESSAGE = "반일 대체휴일은 하루만 선택할 수 있습니다."
+export const REQUEST_DURATION_UNIT_OPTIONS: Array<{
+  value: RequestDurationUnit
+  label: string
+}> = [
+  { value: "FULL_DAY", label: "전일" },
+  { value: "HALF_DAY", label: "반일" },
+]
 
 type LeaveRequestDaysInput = {
   type: LeaveType

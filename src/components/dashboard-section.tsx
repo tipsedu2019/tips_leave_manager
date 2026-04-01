@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/table"
 import {
   getDefaultRequestDurationUnit,
+  REQUEST_DURATION_FIELD_LABEL,
+  REQUEST_DURATION_UNIT_OPTIONS,
   RequestDurationUnit,
 } from "../lib/leave-requests"
 import { LeaveGrantHistoryEntry, LeaveRequest, LeaveType, User } from "../types"
@@ -136,7 +138,7 @@ export function DashboardSection({
 
                       {selectedType === "COMPENSATORY" && (
                         <div className="grid gap-2">
-                          <Label htmlFor="durationUnit">?ъ슜 ?④쐞</Label>
+                          <Label htmlFor="durationUnit">{REQUEST_DURATION_FIELD_LABEL}</Label>
                           <select
                             id="durationUnit"
                             name="durationUnit"
@@ -146,8 +148,11 @@ export function DashboardSection({
                             }
                             className="h-10 w-full rounded-2xl border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                           >
-                            <option value="FULL_DAY">?꾩씪</option>
-                            <option value="HALF_DAY">諛섏씪</option>
+                            {REQUEST_DURATION_UNIT_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       )}
