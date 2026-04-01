@@ -60,13 +60,16 @@ test("mobile calendar summary collapses multiple requests into a count", () => {
 })
 
 test("calendar class names switch by month visibility and today state", () => {
-  assert.match(getCalendarDayClassName(true, false), /bg-white/)
-  assert.match(getCalendarDayClassName(false, false), /bg-muted\/20/)
+  assert.match(getCalendarDayClassName(true, false), /bg-white\/90/)
+  assert.match(getCalendarDayClassName(false, false), /bg-\[#f5f1ea\]\/70/)
   assert.match(getCalendarDayClassName(true, true), /border-black/)
 })
 
 test("today badge classes keep the label compact and horizontal on mobile", () => {
-  assert.match(getTodayBadgeClassName(), /inline-flex/)
-  assert.match(getTodayBadgeClassName(), /whitespace-nowrap/)
-  assert.match(getTodayBadgeClassName(), /text-\[9px\]/)
+  const className = getTodayBadgeClassName()
+
+  assert.match(className, /inline-flex/)
+  assert.match(className, /whitespace-nowrap/)
+  assert.match(className, /text-\[9px\]/)
+  assert.match(className, /tracking-\[0\.08em\]/)
 })

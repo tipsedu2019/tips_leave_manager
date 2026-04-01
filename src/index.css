@@ -5,40 +5,40 @@
 @import "@fontsource-variable/geist";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-background: #ffffff;
-  --color-foreground: #000000;
+  --color-background: #f7f3ec;
+  --color-foreground: #111111;
 
-  --color-card: #ffffff;
-  --color-card-foreground: #000000;
+  --color-card: #fffdf9;
+  --color-card-foreground: #111111;
 
-  --color-popover: #ffffff;
-  --color-popover-foreground: #000000;
+  --color-popover: #fffdf9;
+  --color-popover-foreground: #111111;
 
-  --color-primary: #000000;
+  --color-primary: #111111;
   --color-primary-foreground: #ffffff;
 
-  --color-secondary: #f5f5f5;
-  --color-secondary-foreground: #000000;
+  --color-secondary: #f5f0e7;
+  --color-secondary-foreground: #111111;
 
-  --color-muted: #f5f5f5;
-  --color-muted-foreground: #666666;
+  --color-muted: #f5f0e7;
+  --color-muted-foreground: #6f675f;
 
-  --color-accent: #f5f5f5;
-  --color-accent-foreground: #000000;
+  --color-accent: #f2ebe1;
+  --color-accent-foreground: #111111;
 
   --color-destructive: #ff0000;
   --color-destructive-foreground: #ffffff;
 
-  --color-border: #eaeaea;
-  --color-input: #eaeaea;
-  --color-ring: #000000;
+  --color-border: #e4ddd3;
+  --color-input: #e4ddd3;
+  --color-ring: #111111;
 
-  --radius-lg: 8px;
-  --radius-md: 6px;
-  --radius-sm: 4px;
+  --radius-lg: 20px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
 }
 
 @layer base {
@@ -49,7 +49,15 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image:
+      radial-gradient(circle at top, rgba(255, 255, 255, 0.92), transparent 38%),
+      linear-gradient(180deg, #fbf8f3 0%, #f7f3ec 42%, #efe7da 100%);
+    background-attachment: fixed;
   }
+}
+
+#root {
+  min-height: 100vh;
 }
 
 .vercel-card {

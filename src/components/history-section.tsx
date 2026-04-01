@@ -42,11 +42,11 @@ function getCalendarItems(requests: LeaveRequest[], isoDate: string) {
 function getCalendarItemClass(status: LeaveRequest["status"]) {
   switch (status) {
     case "APPROVED":
-      return "bg-green-50 text-green-700"
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
     case "PENDING":
-      return "bg-yellow-50 text-yellow-700"
+      return "border-amber-200 bg-amber-50 text-amber-700"
     default:
-      return "bg-muted text-foreground"
+      return "border-border bg-muted/60 text-foreground"
   }
 }
 
@@ -77,22 +77,34 @@ export function HistorySection({
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">전사 휴가 현황</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            전사 캘린더
+          </p>
+          <h2 className="text-3xl font-semibold tracking-[-0.04em]">전사 휴가 현황</h2>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            팀 전체의 휴가 일정을 달력과 목록으로 함께 확인할 수 있습니다. 사유는 권한이
+            있는 관리자만 볼 수 있습니다.
+          </p>
+        </div>
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/88 px-2 py-2 shadow-[0_20px_40px_-34px_rgba(15,23,42,0.45)]">
           <Button
             variant="outline"
             size="icon-sm"
+            className="rounded-full"
             onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
           >
             <ChevronLeft size={16} />
           </Button>
-          <div className="min-w-32 text-center text-sm font-medium">
+          <div className="min-w-32 px-2 text-center text-sm font-semibold">
             {format(visibleMonth, "yyyy년 M월", { locale: ko })}
           </div>
           <Button
             variant="outline"
             size="icon-sm"
+            className="rounded-full"
             onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
           >
             <ChevronRight size={16} />
@@ -100,12 +112,12 @@ export function HistorySection({
         </div>
       </div>
 
-      <div className="rounded-3xl border bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div className="rounded-[32px] border border-black/10 bg-white/88 p-3 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:p-5">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
           {DAY_LABELS.map((label) => (
             <div
               key={label}
-              className="rounded-2xl bg-muted/50 px-1.5 py-2 text-center text-xs font-medium text-muted-foreground sm:px-3 sm:text-sm"
+              className="rounded-[18px] bg-[#f5f1ea] px-1.5 py-2 text-center text-xs font-medium text-muted-foreground sm:rounded-[20px] sm:px-3 sm:text-sm"
             >
               {label}
             </div>
@@ -113,64 +125,47 @@ export function HistorySection({
 
           {calendarDays.map((day) => {
             const isoDate = format(day, "yyyy-MM-dd")
-            const visibleItems = getCalendarItems(allRequests, isoDate)
-            const totalItems = getRequestsForDate(allRequests, isoDate).length
             const calendarItems = getRequestsForDate(allRequests, isoDate)
+            const visibleItems = getCalendarItems(allRequests, isoDate)
             const mobileSummary = getMobileCalendarDaySummary(calendarItems)
 
             return (
               <div
                 key={isoDate}
-                className={getCalendarDayClassName(
-                  isSameMonth(day, visibleMonth),
-                  isToday(day)
-                )}
+                className={getCalendarDayClassName(isSameMonth(day, visibleMonth), isToday(day))}
               >
-                <div className="mb-1.5 flex flex-col items-start gap-1 sm:mb-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-2 flex items-start justify-between gap-2">
                   <span
-                    className={`text-xs font-medium sm:text-sm ${
-                      isSameMonth(day, visibleMonth)
-                        ? "text-foreground"
-                        : "text-muted-foreground"
+                    className={`text-xs font-semibold sm:text-sm ${
+                      isSameMonth(day, visibleMonth) ? "text-foreground" : "text-muted-foreground"
                     }`}
                   >
                     {format(day, "d")}
                   </span>
-                  {isToday(day) && (
-                    <span className={getTodayBadgeClassName()}>
-                      오늘
-                    </span>
-                  )}
+                  {isToday(day) && <span className={getTodayBadgeClassName()}>오늘</span>}
                 </div>
 
-                <div className="hidden space-y-1 sm:block">
+                <div className="hidden flex-1 space-y-1.5 sm:block">
                   {visibleItems.map((request) => (
                     <div
                       key={`${isoDate}-${request.id}`}
-                      className={`rounded-xl px-2 py-1 text-[11px] leading-4 ${getCalendarItemClass(request.status)}`}
+                      className={`rounded-[16px] border px-2 py-1.5 text-[11px] leading-4 ${getCalendarItemClass(request.status)}`}
                     >
-                      <div className="font-medium">{request.userName}</div>
+                      <div className="truncate font-medium">{request.userName}</div>
                       <div>{getLeaveTypeLabel(request.type)}</div>
                     </div>
                   ))}
-                  {totalItems > visibleItems.length && (
+                  {calendarItems.length > visibleItems.length && (
                     <div className="px-1 text-[11px] text-muted-foreground">
-                      +{totalItems - visibleItems.length}건 더 있음
-                    </div>
-                  )}
-                  {totalItems === 0 && (
-                    <div className="px-1 text-[11px] text-muted-foreground">
-                      일정 없음
+                      +{calendarItems.length - visibleItems.length}건 더 있음
                     </div>
                   )}
                 </div>
 
                 {mobileSummary && (
                   <div className="sm:hidden">
-                    <div className="rounded-xl bg-muted/50 px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
-                      <span className="block truncate whitespace-nowrap">
-                        {mobileSummary}
-                      </span>
+                    <div className="rounded-[16px] bg-[#f5f1ea] px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
+                      <span className="block truncate whitespace-nowrap">{mobileSummary}</span>
                     </div>
                   </div>
                 )}
@@ -180,53 +175,55 @@ export function HistorySection({
         </div>
       </div>
 
-      <div className="rounded-3xl border bg-white shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>신청일</TableHead>
-              <TableHead>신청자</TableHead>
-              <TableHead>종류</TableHead>
-              <TableHead>기간</TableHead>
-              <TableHead>일수</TableHead>
-              {showLeaveReason && <TableHead>사유</TableHead>}
-              <TableHead>상태</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {allRequests.map((request) => (
-              <TableRow key={request.id}>
-                <TableCell className="text-xs text-muted-foreground">
-                  {formatDate(request.createdAt)}
-                </TableCell>
-                <TableCell className="font-medium">{request.userName}</TableCell>
-                <TableCell>{getLeaveTypeLabel(request.type)}</TableCell>
-                <TableCell className="text-xs">
-                  {request.startDate} ~ {request.endDate}
-                </TableCell>
-                <TableCell>{formatDays(request.daysCount)}일</TableCell>
-                {showLeaveReason && (
-                  <TableCell className="max-w-[220px] truncate text-xs">
-                    {requestReasons[request.id] ?? request.reason ?? "-"}
+      <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white/88 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>신청일</TableHead>
+                <TableHead>신청자</TableHead>
+                <TableHead>종류</TableHead>
+                <TableHead>기간</TableHead>
+                <TableHead>일수</TableHead>
+                {showLeaveReason && <TableHead>사유</TableHead>}
+                <TableHead>상태</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allRequests.map((request) => (
+                <TableRow key={request.id}>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatDate(request.createdAt)}
                   </TableCell>
-                )}
-                <TableCell>
-                  <StatusBadge status={request.status} />
-                </TableCell>
-              </TableRow>
-            ))}
-            {allRequests.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={showLeaveReason ? 7 : 6}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  등록된 휴가 내역이 없습니다.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                  <TableCell className="font-medium">{request.userName}</TableCell>
+                  <TableCell>{getLeaveTypeLabel(request.type)}</TableCell>
+                  <TableCell className="text-xs">
+                    {request.startDate} ~ {request.endDate}
+                  </TableCell>
+                  <TableCell>{formatDays(request.daysCount)}일</TableCell>
+                  {showLeaveReason && (
+                    <TableCell className="max-w-[240px] truncate text-xs">
+                      {requestReasons[request.id] ?? request.reason ?? "-"}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <StatusBadge status={request.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              {allRequests.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={showLeaveReason ? 7 : 6}
+                    className="h-32 text-center text-muted-foreground"
+                  >
+                    등록된 휴가 내역이 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </section>
   )
