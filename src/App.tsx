@@ -44,6 +44,7 @@ import {
   getLeaveTypeLabel,
 } from "./lib/utils"
 import { getEmbeddedBrowserName } from "./lib/auth-login"
+import { getAvailableAppTabs } from "./lib/app-tabs"
 import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
@@ -77,6 +78,23 @@ function sortByCreatedAtDesc<T extends { createdAt: string }>(records: T[]) {
 
 function formatLeaveAmount(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1)
+}
+
+const APP_TAB_LABELS: Record<AppTab, string> = {
+  dashboard: "대시보드",
+  history: "휴가 현황",
+  admin: "관리 도구",
+}
+
+function getAppTabIcon(tab: AppTab) {
+  switch (tab) {
+    case "dashboard":
+      return <LayoutDashboard size={18} />
+    case "history":
+      return <History size={18} />
+    case "admin":
+      return <ShieldCheck size={18} />
+  }
 }
 
 export default function App() {
@@ -121,6 +139,7 @@ export default function App() {
     () => allRequests.filter((request) => request.status !== "REJECTED"),
     [allRequests]
   )
+  const availableTabs = getAvailableAppTabs(canManage)
 
   const normalizeFirestoreUser = (uid: string, data: Record<string, unknown>) =>
     normalizeUserRecord({
@@ -1291,6 +1310,22 @@ export default function App() {
             >
               <LogOut size={18} />
             </Button>
+          </div>
+        </div>
+        <div className="border-t bg-white md:hidden">
+          <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6">
+            {availableTabs.map((tab) => (
+              <div key={`mobile-${tab}`}>
+                <NavButton
+                  active={activeTab === tab}
+                  onClick={() => {
+                    setActiveTab(tab)
+                  }}
+                  icon={getAppTabIcon(tab)}
+                  label={APP_TAB_LABELS[tab]}
+                />
+              </div>
+            ))}
           </div>
         </div>
       </nav>
