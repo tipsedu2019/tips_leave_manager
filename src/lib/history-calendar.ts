@@ -23,9 +23,19 @@ export function getCalendarDayClassName(isCurrentMonth: boolean, isCurrentDay: b
   ].join(" ")
 }
 
+export function getCalendarMonthSwitcherWrapperClassName() {
+  return "flex justify-center lg:justify-end"
+}
+
+export function getCalendarDayHeaderClassName() {
+  return "mb-2 flex flex-col items-start gap-1 sm:flex-row sm:items-start sm:justify-between"
+}
+
 export function getTodayBadgeClassName() {
   return [
     "inline-flex",
+    "self-start",
+    "w-fit",
     "items-center",
     "justify-center",
     "whitespace-nowrap",
@@ -33,12 +43,12 @@ export function getTodayBadgeClassName() {
     "bg-black",
     "px-1.5",
     "py-0.5",
-    "text-[9px]",
+    "text-[8px]",
     "font-medium",
     "leading-none",
-    "tracking-[0.08em]",
     "text-white",
     "sm:px-2",
     "sm:text-[10px]",
+    "sm:tracking-[0.08em]",
   ].join(" ")
 }

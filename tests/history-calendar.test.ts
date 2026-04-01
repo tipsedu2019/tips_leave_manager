@@ -2,7 +2,9 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  getCalendarDayHeaderClassName,
   getCalendarDayClassName,
+  getCalendarMonthSwitcherWrapperClassName,
   getMobileCalendarDaySummary,
   getTodayBadgeClassName,
 } from "../src/lib/history-calendar"
@@ -65,11 +67,27 @@ test("calendar class names switch by month visibility and today state", () => {
   assert.match(getCalendarDayClassName(true, true), /border-black/)
 })
 
+test("calendar month switcher stays centered on mobile", () => {
+  const className = getCalendarMonthSwitcherWrapperClassName()
+
+  assert.match(className, /justify-center/)
+  assert.match(className, /lg:justify-end/)
+})
+
+test("calendar day header stacks date and today badge on mobile", () => {
+  const className = getCalendarDayHeaderClassName()
+
+  assert.match(className, /flex-col/)
+  assert.match(className, /items-start/)
+  assert.match(className, /sm:flex-row/)
+})
+
 test("today badge classes keep the label compact and horizontal on mobile", () => {
   const className = getTodayBadgeClassName()
 
   assert.match(className, /inline-flex/)
+  assert.match(className, /self-start/)
   assert.match(className, /whitespace-nowrap/)
-  assert.match(className, /text-\[9px\]/)
-  assert.match(className, /tracking-\[0\.08em\]/)
+  assert.match(className, /text-\[8px\]/)
+  assert.match(className, /sm:tracking-\[0\.08em\]/)
 })

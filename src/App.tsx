@@ -45,6 +45,12 @@ import {
 } from "./lib/utils"
 import { getEmbeddedBrowserName } from "./lib/auth-login"
 import { getAvailableAppTabs } from "./lib/app-tabs"
+import {
+  getHeaderActionGroupClassName,
+  getUserMetaClassName,
+  getUserNameClassName,
+  getUserRoleClassName,
+} from "./lib/app-shell"
 import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
@@ -1230,7 +1236,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className={getHeaderActionGroupClassName()}>
             <Popover open={isNotificationOpen} onOpenChange={handleNotificationOpenChange}>
               <PopoverTrigger
                 render={
@@ -1291,9 +1297,9 @@ export default function App() {
             </Popover>
 
             <div className="flex items-center gap-2">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
+              <div className={getUserMetaClassName()}>
+                <p className={getUserNameClassName()}>{user.displayName}</p>
+                <p className={getUserRoleClassName()}>{getRoleLabel(user.role)}</p>
               </div>
               <Avatar className="h-8 w-8 border">
                 <AvatarImage

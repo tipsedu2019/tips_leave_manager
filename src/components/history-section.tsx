@@ -31,7 +31,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  getCalendarDayHeaderClassName,
   getCalendarDayClassName,
+  getCalendarMonthSwitcherWrapperClassName,
   getMobileCalendarDaySummary,
   getTodayBadgeClassName,
 } from "../lib/history-calendar"
@@ -96,26 +98,28 @@ export function HistorySection({
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2 py-2 shadow-sm">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full"
-            onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
-          >
-            <ChevronLeft size={16} />
-          </Button>
-          <div className="min-w-32 px-2 text-center text-sm font-semibold">
-            {format(visibleMonth, "yyyy년 M월", { locale: ko })}
+        <div className={getCalendarMonthSwitcherWrapperClassName()}>
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2 py-2 shadow-sm">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full"
+              onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <div className="min-w-32 px-2 text-center text-sm font-semibold">
+              {format(visibleMonth, "yyyy년 M월", { locale: ko })}
+            </div>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full"
+              onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+            >
+              <ChevronRight size={16} />
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full"
-            onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-          >
-            <ChevronRight size={16} />
-          </Button>
         </div>
       </div>
 
@@ -146,7 +150,7 @@ export function HistorySection({
                   key={isoDate}
                   className={getCalendarDayClassName(isSameMonth(day, visibleMonth), isToday(day))}
                 >
-                  <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className={getCalendarDayHeaderClassName()}>
                     <span
                       className={`text-xs font-semibold sm:text-sm ${
                         isSameMonth(day, visibleMonth) ? "text-foreground" : "text-muted-foreground"
