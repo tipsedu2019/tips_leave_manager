@@ -43,6 +43,7 @@ import {
   formatDateTime,
   getLeaveTypeLabel,
 } from "./lib/utils"
+import { getEmbeddedBrowserName } from "./lib/auth-login"
 import { mergeUserRecord, normalizeUserRecord } from "./lib/user-records"
 import { canViewLeaveReason, getRoleLabel, isPrivilegedRole } from "./lib/roles"
 import {
@@ -114,6 +115,8 @@ export default function App() {
     () => notifications.filter((notification) => !notification.readAt).length,
     [notifications]
   )
+  const embeddedBrowserName =
+    typeof window === "undefined" ? null : getEmbeddedBrowserName(window.navigator.userAgent)
   const managedRequests = useMemo(
     () => allRequests.filter((request) => request.status !== "REJECTED"),
     [allRequests]
@@ -511,6 +514,13 @@ export default function App() {
     void migrateReasons()
   }, [allRequests, canManage])
   const handleLogin = async () => {
+    if (embeddedBrowserName) {
+      toast.error(
+        `${embeddedBrowserName}에서는 Google 로그인 정책 때문에 로그인이 차단됩니다. 브라우저 메뉴에서 Chrome 또는 Safari로 열어 다시 시도해 주세요.`
+      )
+      return
+    }
+
     try {
       await signInWithPopup(auth, new GoogleAuthProvider())
       toast.success("로그인되었습니다.")
@@ -530,7 +540,9 @@ export default function App() {
       }
 
       if (code === "auth/popup-blocked") {
-        toast.error("브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.")
+        toast.error(
+          "Google 로그인 창이 차단됐습니다. 휴대폰에서는 Chrome 또는 Safari 같은 기본 브라우저에서 다시 시도해 주세요."
+        )
         return
       }
 
@@ -1153,6 +1165,17 @@ export default function App() {
           <Button onClick={handleLogin} size="lg" className="mt-8 w-full">
             Google 계정으로 시작하기
           </Button>
+          {embeddedBrowserName && (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm leading-6 text-amber-900">
+              <p className="font-semibold">
+                {embeddedBrowserName}에서는 Google 로그인이 차단됩니다.
+              </p>
+              <p>
+                카카오톡 같은 인앱 브라우저가 아니라 Chrome 또는 Safari로 열어 다시
+                로그인해 주세요.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     )
