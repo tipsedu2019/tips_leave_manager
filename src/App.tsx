@@ -406,13 +406,6 @@ export default function App() {
         }
 
         try {
-          const blockedUserSnapshot = await getDoc(doc(db, "blockedUsers", firebaseUser.uid))
-          if (blockedUserSnapshot.exists()) {
-            await signOut(auth)
-            toast.error("삭제된 직원 계정입니다. 관리자에게 문의해 주세요.")
-            return
-          }
-
           const userRef = doc(db, "users", firebaseUser.uid)
           const snapshot = await getDoc(userRef)
 
@@ -435,7 +428,17 @@ export default function App() {
           )
         } catch (error) {
           console.error(error)
-          toast.error("로그인 정보를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+          const code =
+            typeof error === "object" && error && "code" in error
+              ? String((error as { code?: string }).code)
+              : ""
+
+          if (code === "permission-denied") {
+            await signOut(auth)
+            toast.error("삭제된 직원 계정이거나 접근 권한이 없습니다. 관리자에게 문의해 주세요.")
+          } else {
+            toast.error("로그인 정보를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+          }
           setUser(null)
         } finally {
           setLoading(false)
