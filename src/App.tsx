@@ -1315,20 +1315,19 @@ export default function App() {
 
     if (
       !window.confirm(
-        `${member.displayName} 직원을 삭제할까요?\n휴가 신청, 사유, 알림, 대체휴일 기록이 함께 삭제되고 다시 로그인할 수 없습니다.`
+        `${member.displayName} 직원을 삭제할까요?\n휴가 신청, 사유, 대체휴일 기록이 함께 삭제되고 다시 로그인할 수 없습니다.`
       )
     ) {
       return
     }
 
     try {
-      const [requestsSnapshot, reasonsSnapshot, notificationsSnapshot, grantsSnapshot] =
+      const [requestsSnapshot, reasonsSnapshot, grantsSnapshot] =
         await Promise.all([
           getDocs(query(collection(db, "leaveRequests"), where("userId", "==", member.uid))),
           getDocs(
             query(collection(db, "leaveRequestReasons"), where("userId", "==", member.uid))
           ),
-          getDocs(query(collection(db, "notifications"), where("userId", "==", member.uid))),
           getDocs(query(collection(db, "compLeaveGrants"), where("userId", "==", member.uid))),
         ])
 
@@ -1349,9 +1348,6 @@ export default function App() {
       reasonsSnapshot.docs.forEach((reasonDoc) => {
         batch.delete(reasonDoc.ref)
       })
-      notificationsSnapshot.docs.forEach((notificationDoc) => {
-        batch.delete(notificationDoc.ref)
-      })
       grantsSnapshot.docs.forEach((grantDoc) => {
         batch.delete(grantDoc.ref)
       })
@@ -1362,7 +1358,7 @@ export default function App() {
         "DELETE_USER",
         member.uid,
         member.displayName,
-        "직원 계정과 관련 휴가 데이터를 삭제하고 접근을 차단함"
+        "직원 계정과 관련 휴가 및 대체휴일 데이터를 삭제하고 접근을 차단함"
       )
 
       if (selectedUserForGrant?.uid === member.uid) {
