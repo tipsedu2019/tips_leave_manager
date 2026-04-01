@@ -1,6 +1,13 @@
 import React from "react"
 
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { cn, getStatusLabel } from "../lib/utils"
 import { getRoleLabel } from "../lib/roles"
 import { AdminLog, LeaveRequest, User } from "../types"
@@ -18,8 +25,8 @@ export function getNavButtonClassName(active: boolean) {
     "group/nav inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200",
     "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
     active
-      ? "border-black bg-black text-white shadow-[0_14px_30px_-18px_rgba(0,0,0,0.9)]"
-      : "border-black/10 bg-transparent text-muted-foreground hover:bg-white hover:text-black hover:shadow-[0_10px_24px_-20px_rgba(0,0,0,0.7)]"
+      ? "border-transparent bg-primary text-primary-foreground shadow-md"
+      : "border-border/80 bg-background/80 text-muted-foreground hover:bg-accent hover:text-foreground"
   )
 }
 
@@ -39,7 +46,9 @@ export function NavButton({
       <span
         className={cn(
           "inline-flex size-6 items-center justify-center rounded-full transition-colors",
-          active ? "bg-white/14 text-white" : "bg-black/5 text-muted-foreground group-hover/nav:text-black"
+          active
+            ? "bg-primary-foreground/14 text-primary-foreground"
+            : "bg-accent text-muted-foreground group-hover/nav:text-foreground"
         )}
       >
         {icon}
@@ -63,37 +72,44 @@ export function StatCard({
   highlight?: boolean
 }) {
   return (
-    <div
+    <Card
       className={cn(
-        "rounded-[28px] border px-5 py-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-sm",
-        highlight
-          ? "border-black bg-black text-white"
-          : "border-black/10 bg-white/88 text-black"
+        "border border-border/70 bg-card/92 shadow-sm",
+        highlight && "bg-primary text-primary-foreground"
       )}
     >
-      <p
-        className={cn(
-          "text-[11px] font-semibold uppercase tracking-[0.22em]",
-          highlight ? "text-white/70" : "text-muted-foreground"
-        )}
-      >
-        {title}
-      </p>
-      <div className="mt-4 flex items-end gap-1">
-        <span className="text-4xl font-semibold tracking-[-0.05em]">{formatDays(value)}</span>
-        <span className={cn("pb-1 text-sm", highlight ? "text-white/70" : "text-muted-foreground")}>
-          {unit}
-        </span>
-      </div>
-      <p
-        className={cn(
-          "mt-4 text-sm leading-6",
-          highlight ? "text-white/75" : "text-muted-foreground"
-        )}
-      >
-        {description}
-      </p>
-    </div>
+      <CardHeader className="gap-2">
+        <CardDescription
+          className={cn(
+            "text-[11px] font-semibold uppercase tracking-[0.2em]",
+            highlight ? "text-primary-foreground/72" : "text-muted-foreground"
+          )}
+        >
+          {title}
+        </CardDescription>
+        <CardTitle className={cn("text-4xl tracking-[-0.06em]", highlight && "text-primary-foreground")}>
+          <span>{formatDays(value)}</span>
+          <span
+            className={cn(
+              "ml-1 text-sm font-medium",
+              highlight ? "text-primary-foreground/72" : "text-muted-foreground"
+            )}
+          >
+            {unit}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p
+          className={cn(
+            "text-sm leading-6",
+            highlight ? "text-primary-foreground/76" : "text-muted-foreground"
+          )}
+        >
+          {description}
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -106,13 +122,13 @@ export function getStatusBadgeClassName(status: LeaveRequest["status"]) {
     case "REJECTED":
       return "border-rose-200 bg-rose-50 text-rose-700"
     default:
-      return "border-border bg-transparent text-foreground"
+      return "border-border bg-background text-foreground"
   }
 }
 
 export function StatusBadge({ status }: { status: LeaveRequest["status"] }) {
   return (
-    <Badge variant="secondary" className={cn("font-normal", getStatusBadgeClassName(status))}>
+    <Badge variant="outline" className={cn("rounded-full font-normal", getStatusBadgeClassName(status))}>
       {getStatusLabel(status)}
     </Badge>
   )
@@ -121,17 +137,17 @@ export function StatusBadge({ status }: { status: LeaveRequest["status"] }) {
 export function getRoleBadgeClassName(role: User["role"]) {
   switch (role) {
     case "ADMIN":
-      return "border-black bg-black text-white"
+      return "border-transparent bg-primary text-primary-foreground"
     case "MANAGER":
-      return "border-border bg-secondary text-foreground"
+      return "border-border bg-secondary text-secondary-foreground"
     default:
-      return "border-border bg-transparent text-muted-foreground"
+      return "border-border bg-background text-muted-foreground"
   }
 }
 
 export function RoleBadge({ role }: { role: User["role"] }) {
   return (
-    <Badge variant="outline" className={cn("font-normal", getRoleBadgeClassName(role))}>
+    <Badge variant="outline" className={cn("rounded-full font-normal", getRoleBadgeClassName(role))}>
       {getRoleLabel(role)}
     </Badge>
   )

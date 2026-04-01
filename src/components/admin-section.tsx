@@ -6,6 +6,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -107,43 +114,38 @@ export function AdminSection({
   onCancelApproval: (request: LeaveRequest) => void
 }) {
   return (
-    <section className="space-y-10">
-      <div className="rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#faf6ef_100%)] p-6 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <section className="space-y-8">
+      <Card className="border border-border/70 bg-[linear-gradient(135deg,#fffdf9_0%,#f5f0e7_100%)] shadow-sm">
+        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-[0.2em]">
               운영 작업대
-            </p>
-            <h2 className="text-3xl font-semibold tracking-[-0.04em]">관리 도구</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            </CardDescription>
+            <CardTitle className="text-3xl tracking-[-0.04em]">관리 도구</CardTitle>
+            <CardDescription className="max-w-2xl leading-6">
               휴가 승인, 권한 관리, 연차 조정, 대체휴일 부여를 한 화면에서 처리할 수 있는
-              운영 작업대입니다.
-            </p>
+              운영 작업 공간입니다.
+            </CardDescription>
           </div>
+          <Badge variant="outline" className="w-fit rounded-full bg-primary text-primary-foreground">
+            {getRoleLabel(user.role)} 모드
+          </Badge>
+        </CardHeader>
+      </Card>
 
-          <div className="flex items-center gap-3 rounded-full border border-black/10 bg-white px-3 py-2 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.5)]">
-            <span className="text-sm text-muted-foreground">{user.displayName}</span>
-            <Badge variant="outline" className="rounded-full bg-black text-white">
-              {getRoleLabel(user.role)} 모드
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      <section className="space-y-4">
+      <div className="space-y-4">
         <SectionHeading
           eyebrow="휴가 승인"
           title="휴가 승인 관리"
-          description="승인 대기 중 요청을 처리하고, 이미 승인된 요청은 필요 시 다시 승인 대기 상태로 되돌릴 수 있습니다."
+          description="승인 대기 요청을 처리하고, 승인된 요청은 필요 시 다시 승인 대기 상태로 돌릴 수 있습니다."
           trailing={
-            <div className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-muted-foreground">
+            <Badge variant="outline" className="rounded-full">
               처리 대상 {managedRequests.length}건
-            </div>
+            </Badge>
           }
         />
-
-        <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white/88 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-          <div className="overflow-x-auto">
+        <Card className="border border-border/70 bg-card/92 shadow-sm">
+          <CardContent className="overflow-x-auto pt-6">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -165,7 +167,7 @@ export function AdminSection({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
-                        <Avatar className="size-7 border border-black/10">
+                        <Avatar className="size-7 border border-border">
                           <AvatarFallback className="text-[10px]">
                             {getDisplayInitial(request.userName)}
                           </AvatarFallback>
@@ -231,65 +233,65 @@ export function AdminSection({
                 )}
               </TableBody>
             </Table>
-          </div>
-        </div>
-      </section>
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="space-y-4">
+      <div className="space-y-4">
         <SectionHeading
           eyebrow="작업 이력"
           title="관리자 작업 이력"
           description="승인, 반려, 권한 변경, 연차 조정 같은 주요 운영 작업이 자동으로 기록됩니다."
         />
-
-        <div className="max-h-[420px] overflow-auto rounded-[32px] border border-black/10 bg-white/88 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>일시</TableHead>
-                <TableHead>관리자</TableHead>
-                <TableHead>대상</TableHead>
-                <TableHead>작업</TableHead>
-                <TableHead>상세 내용</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {adminLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(log.createdAt)}
-                  </TableCell>
-                  <TableCell className="font-medium">{log.adminName}</TableCell>
-                  <TableCell>{log.targetUserName}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="rounded-full font-normal">
-                      {getAdminActionLabel(log.action)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{log.details}</TableCell>
+        <Card className="border border-border/70 bg-card/92 shadow-sm">
+          <CardContent className="max-h-[420px] overflow-auto pt-6">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>일시</TableHead>
+                  <TableHead>관리자</TableHead>
+                  <TableHead>대상</TableHead>
+                  <TableHead>작업</TableHead>
+                  <TableHead>상세 내용</TableHead>
                 </TableRow>
-              ))}
-              {adminLogs.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                    기록된 작업 이력이 없습니다.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+              </TableHeader>
+              <TableBody>
+                {adminLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(log.createdAt)}
+                    </TableCell>
+                    <TableCell className="font-medium">{log.adminName}</TableCell>
+                    <TableCell>{log.targetUserName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="rounded-full font-normal">
+                        {getAdminActionLabel(log.action)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{log.details}</TableCell>
+                  </TableRow>
+                ))}
+                {adminLogs.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                      기록된 작업 이력이 없습니다.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="space-y-4">
+      <div className="space-y-4">
         <SectionHeading
           eyebrow="직원 관리"
           title="직원 관리 및 휴가 조정"
           description="직원 권한을 조정하고, 입사일과 연차 기준, 대체휴일을 필요한 만큼 바로 수정할 수 있습니다."
         />
-
-        <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white/88 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-          <div className="overflow-x-auto">
+        <Card className="border border-border/70 bg-card/92 shadow-sm">
+          <CardContent className="overflow-x-auto pt-6">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -307,7 +309,7 @@ export function AdminSection({
                     <TableCell>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2.5">
-                          <Avatar className="size-8 border border-black/10">
+                          <Avatar className="size-8 border border-border">
                             <AvatarFallback>{getDisplayInitial(member.displayName)}</AvatarFallback>
                           </Avatar>
                           <div className="space-y-1">
@@ -499,9 +501,9 @@ export function AdminSection({
                 )}
               </TableBody>
             </Table>
-          </div>
-        </div>
-      </section>
+          </CardContent>
+        </Card>
+      </div>
     </section>
   )
 }

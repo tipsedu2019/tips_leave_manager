@@ -16,6 +16,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Table,
   TableBody,
   TableCell,
@@ -84,12 +91,12 @@ export function HistorySection({
           </p>
           <h2 className="text-3xl font-semibold tracking-[-0.04em]">전사 휴가 현황</h2>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            팀 전체의 휴가 일정을 달력과 목록으로 함께 확인할 수 있습니다. 사유는 권한이
+            팀 전체 휴가 일정을 달력과 목록으로 함께 확인할 수 있습니다. 사유는 권한이
             있는 관리자만 볼 수 있습니다.
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/88 px-2 py-2 shadow-[0_20px_40px_-34px_rgba(15,23,42,0.45)]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2 py-2 shadow-sm">
           <Button
             variant="outline"
             size="icon-sm"
@@ -112,71 +119,81 @@ export function HistorySection({
         </div>
       </div>
 
-      <div className="rounded-[32px] border border-black/10 bg-white/88 p-3 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:p-5">
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
-          {DAY_LABELS.map((label) => (
-            <div
-              key={label}
-              className="rounded-[18px] bg-[#f5f1ea] px-1.5 py-2 text-center text-xs font-medium text-muted-foreground sm:rounded-[20px] sm:px-3 sm:text-sm"
-            >
-              {label}
-            </div>
-          ))}
-
-          {calendarDays.map((day) => {
-            const isoDate = format(day, "yyyy-MM-dd")
-            const calendarItems = getRequestsForDate(allRequests, isoDate)
-            const visibleItems = getCalendarItems(allRequests, isoDate)
-            const mobileSummary = getMobileCalendarDaySummary(calendarItems)
-
-            return (
+      <Card className="border border-border/70 bg-card/92 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-[-0.04em]">월간 캘린더</CardTitle>
+          <CardDescription>승인 대기와 승인 완료 휴가를 같은 달력에서 확인할 수 있습니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+            {DAY_LABELS.map((label) => (
               <div
-                key={isoDate}
-                className={getCalendarDayClassName(isSameMonth(day, visibleMonth), isToday(day))}
+                key={label}
+                className="rounded-2xl bg-secondary px-1.5 py-2 text-center text-xs font-medium text-muted-foreground sm:px-3 sm:text-sm"
               >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <span
-                    className={`text-xs font-semibold sm:text-sm ${
-                      isSameMonth(day, visibleMonth) ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {format(day, "d")}
-                  </span>
-                  {isToday(day) && <span className={getTodayBadgeClassName()}>오늘</span>}
-                </div>
+                {label}
+              </div>
+            ))}
 
-                <div className="hidden flex-1 space-y-1.5 sm:block">
-                  {visibleItems.map((request) => (
-                    <div
-                      key={`${isoDate}-${request.id}`}
-                      className={`rounded-[16px] border px-2 py-1.5 text-[11px] leading-4 ${getCalendarItemClass(request.status)}`}
+            {calendarDays.map((day) => {
+              const isoDate = format(day, "yyyy-MM-dd")
+              const calendarItems = getRequestsForDate(allRequests, isoDate)
+              const visibleItems = getCalendarItems(allRequests, isoDate)
+              const mobileSummary = getMobileCalendarDaySummary(calendarItems)
+
+              return (
+                <div
+                  key={isoDate}
+                  className={getCalendarDayClassName(isSameMonth(day, visibleMonth), isToday(day))}
+                >
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <span
+                      className={`text-xs font-semibold sm:text-sm ${
+                        isSameMonth(day, visibleMonth) ? "text-foreground" : "text-muted-foreground"
+                      }`}
                     >
-                      <div className="truncate font-medium">{request.userName}</div>
-                      <div>{getLeaveTypeLabel(request.type)}</div>
-                    </div>
-                  ))}
-                  {calendarItems.length > visibleItems.length && (
-                    <div className="px-1 text-[11px] text-muted-foreground">
-                      +{calendarItems.length - visibleItems.length}건 더 있음
+                      {format(day, "d")}
+                    </span>
+                    {isToday(day) && <span className={getTodayBadgeClassName()}>오늘</span>}
+                  </div>
+
+                  <div className="hidden flex-1 space-y-1.5 sm:block">
+                    {visibleItems.map((request) => (
+                      <div
+                        key={`${isoDate}-${request.id}`}
+                        className={`rounded-2xl border px-2 py-1.5 text-[11px] leading-4 ${getCalendarItemClass(request.status)}`}
+                      >
+                        <div className="truncate font-medium">{request.userName}</div>
+                        <div>{getLeaveTypeLabel(request.type)}</div>
+                      </div>
+                    ))}
+                    {calendarItems.length > visibleItems.length && (
+                      <div className="px-1 text-[11px] text-muted-foreground">
+                        +{calendarItems.length - visibleItems.length}건 더 있음
+                      </div>
+                    )}
+                  </div>
+
+                  {mobileSummary && (
+                    <div className="sm:hidden">
+                      <div className="rounded-2xl bg-secondary px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
+                        <span className="block truncate whitespace-nowrap">{mobileSummary}</span>
+                      </div>
                     </div>
                   )}
                 </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
-                {mobileSummary && (
-                  <div className="sm:hidden">
-                    <div className="rounded-[16px] bg-[#f5f1ea] px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
-                      <span className="block truncate whitespace-nowrap">{mobileSummary}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white/88 shadow-[0_28px_90px_-60px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-        <div className="overflow-x-auto">
+      <Card className="border border-border/70 bg-card/92 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-[-0.04em]">휴가 신청 목록</CardTitle>
+          <CardDescription>전사 휴가 현황을 표 형태로도 빠르게 훑어볼 수 있습니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -223,8 +240,8 @@ export function HistorySection({
               )}
             </TableBody>
           </Table>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </section>
   )
 }
