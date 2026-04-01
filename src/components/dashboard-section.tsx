@@ -1,6 +1,6 @@
 import React from "react"
 
-import { CalendarRange, Edit2, Plus, Sparkles, Trash2 } from "lucide-react"
+import { CalendarRange, Edit2, Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -63,32 +63,29 @@ export function DashboardSection({
   const isEditing = editingRequest !== null
   const editingReason = editingRequest ? requestReasons[editingRequest.id] ?? "" : ""
   const remainingCompLeave = user.totalCompLeave - user.usedCompLeave
+  const pendingRequestCount = requests.filter((request) => request.status === "PENDING").length
 
   return (
     <section className="space-y-8">
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
-        <Card className="overflow-hidden border border-border/70 bg-[linear-gradient(135deg,#151515_0%,#2f2a24_100%)] text-white shadow-lg">
-          <CardHeader className="gap-4">
-            <BadgePill icon={<Sparkles size={12} />} label="개인 워크스페이스" inverted />
-            <div className="space-y-3">
-              <CardTitle className="text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
-                내 휴가 흐름을 한 화면에서 정리하세요
-              </CardTitle>
-              <CardDescription className="max-w-2xl text-sm leading-7 text-white/76 sm:text-base">
-                신청, 수정, 취소, 자동 발생 내역 확인까지 이어지는 개인 휴가 작업 공간입니다.
-                잔여 연차와 대체휴일, 이월 연차를 함께 보면서 다음 일정을 바로 정리할 수
-                있습니다.
-              </CardDescription>
-            </div>
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="border border-border/70 bg-card/92 shadow-sm">
+          <CardHeader className="gap-3">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-[0.2em]">
+              휴가 신청
+            </CardDescription>
+            <CardTitle className="text-3xl tracking-[-0.05em]">
+              필요한 날짜를 골라 바로 신청하세요
+            </CardTitle>
+            <CardDescription className="max-w-2xl text-sm leading-7">
+              신청은 바로 접수되고, 승인 대기 중인 요청은 직접 수정하거나 취소할 수
+              있습니다. 사유는 최고관리자와 관리자만 확인할 수 있습니다.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             <div className="flex flex-wrap gap-3">
               <Dialog open={isRequestModalOpen} onOpenChange={onRequestModalChange}>
                 <DialogTrigger asChild>
-                  <Button
-                    size="lg"
-                    className="h-11 rounded-full bg-white px-5 text-black hover:bg-white/90"
-                  >
+                  <Button size="lg" className="h-11 rounded-full px-5">
                     <Plus data-icon="inline-start" />
                     휴가 신청하기
                   </Button>
@@ -167,17 +164,25 @@ export function DashboardSection({
                 </DialogContent>
               </Dialog>
 
-              <BadgePill
+              <InfoPill
                 icon={<CalendarRange size={15} />}
                 label={`사용 가능 연차 ${formatDays(availableAnnualLeave)}일`}
-                inverted
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="다음 자동 발생일" value={user.nextLeaveAccrualDate} inverted />
-              <MiniMetric label="이월 연차" value={`${formatDays(carryoverBalance)}일`} inverted />
-              <MiniMetric label="남은 대체휴일" value={`${formatDays(remainingCompLeave)}일`} inverted />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FlowPanel
+                title="신청 후 흐름"
+                description="승인 대기 상태에서는 신청자가 직접 수정하거나 취소할 수 있습니다."
+              />
+              <FlowPanel
+                title="현재 처리 상태"
+                description={
+                  pendingRequestCount > 0
+                    ? `지금 승인 대기 중인 내 요청은 ${pendingRequestCount}건입니다.`
+                    : "현재 승인 대기 중인 내 요청은 없습니다."
+                }
+              />
             </div>
           </CardContent>
         </Card>
@@ -200,18 +205,8 @@ export function DashboardSection({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-3xl border border-border/70 bg-background px-4 py-4">
-                <p className="text-xs text-muted-foreground">이월 연차</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em]">
-                  {formatDays(carryoverBalance)}일
-                </p>
-              </div>
-              <div className="rounded-3xl border border-border/70 bg-background px-4 py-4">
-                <p className="text-xs text-muted-foreground">대체휴일</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em]">
-                  {formatDays(remainingCompLeave)}일
-                </p>
-              </div>
+              <MetricTile label="이월 연차" value={`${formatDays(carryoverBalance)}일`} />
+              <MetricTile label="대체휴일" value={`${formatDays(remainingCompLeave)}일`} />
             </div>
 
             <div className="rounded-3xl bg-secondary px-4 py-4 text-sm leading-6 text-muted-foreground">
@@ -254,7 +249,7 @@ export function DashboardSection({
         <Card className="border border-border/70 bg-card/92 shadow-sm">
           <CardHeader className="gap-2">
             <CardDescription className="text-[11px] font-semibold uppercase tracking-[0.2em]">
-              휴가 신청
+              휴가 신청 목록
             </CardDescription>
             <CardTitle className="text-2xl tracking-[-0.04em]">내 휴가 신청</CardTitle>
             <CardDescription>
@@ -390,48 +385,47 @@ export function DashboardSection({
   )
 }
 
-function BadgePill({
+function InfoPill({
   icon,
   label,
-  inverted = false,
 }: {
   icon: React.ReactNode
   label: string
-  inverted?: boolean
 }) {
   return (
-    <div
-      className={
-        inverted
-          ? "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2.5 text-sm text-white/82"
-          : "inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 text-sm text-foreground"
-      }
-    >
+    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 px-4 py-2.5 text-sm text-foreground">
       {icon}
       {label}
     </div>
   )
 }
 
-function MiniMetric({
+function FlowPanel({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-3xl border border-border/70 bg-secondary/45 px-4 py-4">
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function MetricTile({
   label,
   value,
-  inverted = false,
 }: {
   label: string
   value: string
-  inverted?: boolean
 }) {
   return (
-    <div
-      className={
-        inverted
-          ? "rounded-3xl border border-white/10 bg-white/8 px-4 py-4"
-          : "rounded-3xl border border-border bg-background px-4 py-4"
-      }
-    >
-      <p className={inverted ? "text-xs text-white/56" : "text-xs text-muted-foreground"}>{label}</p>
-      <p className="mt-2 text-lg font-semibold tracking-[-0.03em]">{value}</p>
+    <div className="rounded-3xl border border-border/70 bg-background px-4 py-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-[-0.05em]">{value}</p>
     </div>
   )
 }
