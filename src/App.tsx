@@ -1,9 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react"
 import {
+  createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  fetchSignInMethodsForEmail,
   GoogleAuthProvider,
+  linkWithCredential,
   onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
 } from "firebase/auth"
 import {
   addDoc,
@@ -52,6 +59,13 @@ import {
   getUserRoleClassName,
 } from "./lib/app-shell"
 import {
+  canLinkEmailPassword,
+  EmailAuthMode,
+  getEmailAuthErrorMessage,
+  getEmailAuthModeDescription,
+  getEmailAuthSubmitLabel,
+} from "./lib/email-auth"
+import {
   HALF_DAY_COMP_MESSAGE,
   getLeaveRequestDaysCount,
   RequestDurationUnit,
@@ -69,6 +83,17 @@ import {
 } from "./lib/leave-management"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
@@ -131,6 +156,15 @@ export default function App() {
   const [selectedUserForGrant, setSelectedUserForGrant] = useState<User | null>(null)
   const [selectedUserForAdjust, setSelectedUserForAdjust] = useState<User | null>(null)
   const [selectedUserForRole, setSelectedUserForRole] = useState<User | null>(null)
+  const [authProviderIds, setAuthProviderIds] = useState<string[]>([])
+  const [emailAuthMode, setEmailAuthMode] = useState<EmailAuthMode>("SIGN_IN")
+  const [emailAuthName, setEmailAuthName] = useState("")
+  const [emailAuthEmail, setEmailAuthEmail] = useState("")
+  const [emailAuthPassword, setEmailAuthPassword] = useState("")
+  const [emailAuthPasswordConfirm, setEmailAuthPasswordConfirm] = useState("")
+  const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false)
+  const [isPasswordSetupOpen, setIsPasswordSetupOpen] = useState(false)
+  const [isPasswordSetupLoading, setIsPasswordSetupLoading] = useState(false)
 
   const canManage = user ? isPrivilegedRole(user.role) : false
   const showLeaveReason = user ? canViewLeaveReason(user.role) : false
@@ -151,12 +185,38 @@ export default function App() {
     [allRequests]
   )
   const availableTabs = getAvailableAppTabs(canManage)
+  const canSetupEmailPassword = canLinkEmailPassword(user?.email, authProviderIds)
+
+  const resetEmailAuthForm = () => {
+    setEmailAuthName("")
+    setEmailAuthEmail("")
+    setEmailAuthPassword("")
+    setEmailAuthPasswordConfirm("")
+  }
 
   const normalizeFirestoreUser = (uid: string, data: Record<string, unknown>) =>
     normalizeUserRecord({
       uid,
       ...data,
     } as Partial<User> & Pick<User, "uid" | "email" | "displayName" | "role">)
+
+  const buildInitialUserRecord = (uid: string, email: string, displayName: string): User => {
+    const joinDate = new Date().toISOString().split("T")[0]
+
+    return {
+      uid,
+      email,
+      displayName,
+      role: email === OWNER_ADMIN_EMAIL ? "ADMIN" : "EMPLOYEE",
+      totalLeave: calculateAnnualLeave(joinDate, joinDate),
+      usedLeave: 0,
+      totalCompLeave: 0,
+      usedCompLeave: 0,
+      joinDate,
+      carryoverLeaves: [],
+      nextLeaveAccrualDate: getNextLeaveAccrualDate(joinDate, joinDate),
+    }
+  }
 
   const createNotifications = async (
     drafts: Array<
@@ -329,6 +389,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         setUser(null)
+        setAuthProviderIds([])
         setRequests([])
         setAllRequests([])
         setAllUsers([])
@@ -359,23 +420,18 @@ export default function App() {
           await syncUserIfNeeded(normalizeFirestoreUser(firebaseUser.uid, snapshot.data()))
         )
       } else {
-        const joinDate = new Date().toISOString().split("T")[0]
-        const nextUser: User = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email ?? "",
-          displayName: firebaseUser.displayName ?? "사용자",
-          role: firebaseUser.email === OWNER_ADMIN_EMAIL ? "ADMIN" : "EMPLOYEE",
-          totalLeave: calculateAnnualLeave(joinDate, joinDate),
-          usedLeave: 0,
-          totalCompLeave: 0,
-          usedCompLeave: 0,
-          joinDate,
-          carryoverLeaves: [],
-          nextLeaveAccrualDate: getNextLeaveAccrualDate(joinDate, joinDate),
-        }
+        const nextUser = buildInitialUserRecord(
+          firebaseUser.uid,
+          firebaseUser.email ?? "",
+          firebaseUser.displayName ?? "사용자"
+        )
         await setDoc(userRef, nextUser)
         setUser(nextUser)
       }
+
+      setAuthProviderIds(
+        Array.from(new Set(firebaseUser.providerData.map((provider) => provider.providerId)))
+      )
 
       setLoading(false)
     })
@@ -577,6 +633,148 @@ export default function App() {
       }
 
       toast.error("로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+    }
+  }
+
+  const handleEmailAuthSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const email = emailAuthEmail.trim().toLowerCase()
+    const password = emailAuthPassword
+    const displayName = emailAuthName.trim()
+
+    if (!email || !password) {
+      toast.error("이메일과 비밀번호를 입력해 주세요.")
+      return
+    }
+
+    if (emailAuthMode === "SIGN_UP") {
+      if (!displayName) {
+        toast.error("이름을 입력해 주세요.")
+        return
+      }
+
+      if (password.length < 6) {
+        toast.error("비밀번호는 6자 이상으로 입력해 주세요.")
+        return
+      }
+
+      if (password !== emailAuthPasswordConfirm) {
+        toast.error("비밀번호 확인이 일치하지 않습니다.")
+        return
+      }
+    }
+
+    setIsEmailAuthLoading(true)
+
+    try {
+      if (emailAuthMode === "SIGN_UP") {
+        const result = await createUserWithEmailAndPassword(auth, email, password)
+        await updateProfile(result.user, { displayName })
+        await setDoc(
+          doc(db, "users", result.user.uid),
+          buildInitialUserRecord(result.user.uid, email, displayName)
+        )
+        setAuthProviderIds((providers) => Array.from(new Set([...providers, "password"])))
+        toast.success("이메일 회원가입이 완료되었습니다.")
+      } else {
+        await signInWithEmailAndPassword(auth, email, password)
+        toast.success("이메일로 로그인되었습니다.")
+      }
+
+      resetEmailAuthForm()
+    } catch (error) {
+      console.error(error)
+
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: string }).code)
+          : ""
+
+      if (code === "auth/email-already-in-use" && emailAuthMode === "SIGN_UP") {
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, email)
+          if (methods.includes("google.com") && !methods.includes("password")) {
+            toast.error(
+              "이미 Google 로그인으로 사용 중인 이메일입니다. 먼저 Google로 로그인한 뒤 이메일 로그인 설정을 추가해 주세요."
+            )
+            return
+          }
+        } catch (fetchError) {
+          console.error(fetchError)
+        }
+      }
+
+      toast.error(
+        getEmailAuthErrorMessage(code, emailAuthMode === "SIGN_UP" ? "SIGN_UP" : "SIGN_IN")
+      )
+    } finally {
+      setIsEmailAuthLoading(false)
+    }
+  }
+
+  const handleSendPasswordReset = async () => {
+    const email = emailAuthEmail.trim().toLowerCase()
+
+    if (!email) {
+      toast.error("비밀번호 재설정 메일을 받을 이메일을 먼저 입력해 주세요.")
+      return
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email)
+      toast.success("비밀번호 재설정 메일을 보냈습니다.")
+    } catch (error) {
+      console.error(error)
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: string }).code)
+          : ""
+      toast.error(getEmailAuthErrorMessage(code, "RESET"))
+    }
+  }
+
+  const handleLinkEmailPassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const currentUser = auth.currentUser
+    const email = currentUser?.email
+
+    if (!currentUser || !email) {
+      toast.error("현재 계정에 연결된 이메일을 찾을 수 없습니다.")
+      return
+    }
+
+    const formData = new FormData(event.currentTarget)
+    const password = String(formData.get("password") ?? "")
+    const confirmPassword = String(formData.get("confirmPassword") ?? "")
+
+    if (password.length < 6) {
+      toast.error("비밀번호는 6자 이상으로 입력해 주세요.")
+      return
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("비밀번호 확인이 일치하지 않습니다.")
+      return
+    }
+
+    setIsPasswordSetupLoading(true)
+
+    try {
+      await linkWithCredential(currentUser, EmailAuthProvider.credential(email, password))
+      setAuthProviderIds((providers) => Array.from(new Set([...providers, "password"])))
+      setIsPasswordSetupOpen(false)
+      toast.success("이메일 로그인 설정이 완료되었습니다.")
+    } catch (error) {
+      console.error(error)
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: string }).code)
+          : ""
+      toast.error(getEmailAuthErrorMessage(code, "LINK"))
+    } finally {
+      setIsPasswordSetupLoading(false)
     }
   }
 
@@ -1188,33 +1386,142 @@ export default function App() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fafafa] px-4">
         <Toaster position="top-center" />
-        <div className="w-full max-w-md rounded-3xl border bg-white p-10 text-center shadow-sm">
-          <div className="space-y-3">
+        <div className="w-full max-w-md rounded-3xl border bg-white p-8 shadow-sm">
+          <div className="space-y-3 text-center">
             <p className="text-sm font-medium text-muted-foreground">Tips Leave Manager</p>
             <h1 className="text-3xl font-bold tracking-tight">
-              연차와 휴가를
+              휴가와 휴직을
               <br />
               한 화면에서 관리해 보세요
             </h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Google 계정으로 로그인하면 개인 휴가 신청, 회사 전체 휴가 현황, 연차 발생
-              내역까지 바로 확인할 수 있습니다.
+              Google 또는 이메일 로그인으로 개인 휴가 신청, 전사 휴가 현황, 연차 발생 내역까지
+              바로 확인할 수 있습니다.
             </p>
           </div>
-          <Button onClick={handleLogin} size="lg" className="mt-8 w-full">
-            Google 계정으로 시작하기
-          </Button>
-          {embeddedBrowserName && (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm leading-6 text-amber-900">
-              <p className="font-semibold">
-                {embeddedBrowserName}에서는 Google 로그인이 차단됩니다.
-              </p>
-              <p>
-                카카오톡 같은 인앱 브라우저가 아니라 Chrome 또는 Safari로 열어 다시
-                로그인해 주세요.
-              </p>
+
+          <div className="mt-8 space-y-3">
+            <Button onClick={handleLogin} size="lg" className="w-full">
+              Google 계정으로 시작하기
+            </Button>
+
+            {embeddedBrowserName && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm leading-6 text-amber-900">
+                <p className="font-semibold">
+                  {embeddedBrowserName}에서는 Google 로그인이 차단됩니다.
+                </p>
+                <p>Chrome 또는 Safari 같은 기본 브라우저에서 다시 열어 로그인해 주세요.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
             </div>
-          )}
+            <div className="relative flex justify-center">
+              <span className="bg-white px-3 text-xs font-medium text-muted-foreground">
+                또는 이메일 로그인
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-border/70 bg-secondary/30 p-4">
+            <div className="grid grid-cols-2 gap-2 rounded-full bg-secondary p-1">
+              <button
+                type="button"
+                onClick={() => setEmailAuthMode("SIGN_IN")}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  emailAuthMode === "SIGN_IN"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                로그인
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailAuthMode("SIGN_UP")}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  emailAuthMode === "SIGN_UP"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                회원가입
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">
+              {getEmailAuthModeDescription(emailAuthMode)}
+            </p>
+
+            <form className="mt-4 space-y-3" onSubmit={handleEmailAuthSubmit}>
+              {emailAuthMode === "SIGN_UP" && (
+                <div className="grid gap-2">
+                  <Label htmlFor="emailAuthName">이름</Label>
+                  <Input
+                    id="emailAuthName"
+                    value={emailAuthName}
+                    onChange={(event) => setEmailAuthName(event.target.value)}
+                    placeholder="표시할 이름을 입력해 주세요."
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+
+              <div className="grid gap-2">
+                <Label htmlFor="emailAuthEmail">이메일</Label>
+                <Input
+                  id="emailAuthEmail"
+                  type="email"
+                  value={emailAuthEmail}
+                  onChange={(event) => setEmailAuthEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="emailAuthPassword">비밀번호</Label>
+                <Input
+                  id="emailAuthPassword"
+                  type="password"
+                  value={emailAuthPassword}
+                  onChange={(event) => setEmailAuthPassword(event.target.value)}
+                  placeholder="6자 이상 입력해 주세요."
+                  autoComplete={emailAuthMode === "SIGN_UP" ? "new-password" : "current-password"}
+                />
+              </div>
+
+              {emailAuthMode === "SIGN_UP" && (
+                <div className="grid gap-2">
+                  <Label htmlFor="emailAuthPasswordConfirm">비밀번호 확인</Label>
+                  <Input
+                    id="emailAuthPasswordConfirm"
+                    type="password"
+                    value={emailAuthPasswordConfirm}
+                    onChange={(event) => setEmailAuthPasswordConfirm(event.target.value)}
+                    placeholder="비밀번호를 다시 입력해 주세요."
+                    autoComplete="new-password"
+                  />
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isEmailAuthLoading}>
+                {isEmailAuthLoading ? "처리 중..." : getEmailAuthSubmitLabel(emailAuthMode)}
+              </Button>
+            </form>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-2 w-full"
+              onClick={handleSendPasswordReset}
+            >
+              비밀번호 재설정 메일 보내기
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -1351,6 +1658,70 @@ export default function App() {
       </nav>
 
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {canSetupEmailPassword && (
+          <div className="rounded-3xl border border-border/70 bg-white/90 px-5 py-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">이메일 로그인도 함께 설정할 수 있습니다</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  카카오톡이나 카카오워크 같은 인앱 브라우저에서 로그인하려면 비밀번호를 한 번
+                  설정해 두는 것이 가장 안정적입니다.
+                </p>
+              </div>
+
+              <Dialog open={isPasswordSetupOpen} onOpenChange={setIsPasswordSetupOpen}>
+                <DialogTrigger asChild>
+                  <Button className="shrink-0">이메일 로그인 설정</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[420px]">
+                  <form onSubmit={handleLinkEmailPassword}>
+                    <DialogHeader>
+                      <DialogTitle>이메일 로그인 설정</DialogTitle>
+                      <DialogDescription>
+                        현재 Google 계정에 비밀번호를 연결하면 같은 이메일로도 로그인할 수
+                        있습니다.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="linkedEmail">이메일</Label>
+                        <Input id="linkedEmail" value={user.email} disabled />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="linkPassword">새 비밀번호</Label>
+                        <Input
+                          id="linkPassword"
+                          name="password"
+                          type="password"
+                          placeholder="6자 이상 입력해 주세요."
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="linkPasswordConfirm">비밀번호 확인</Label>
+                        <Input
+                          id="linkPasswordConfirm"
+                          name="confirmPassword"
+                          type="password"
+                          placeholder="비밀번호를 다시 입력해 주세요."
+                          autoComplete="new-password"
+                        />
+                      </div>
+                    </div>
+
+                    <DialogFooter>
+                      <Button type="submit" className="w-full" disabled={isPasswordSetupLoading}>
+                        {isPasswordSetupLoading ? "설정 중..." : "이메일 로그인 설정하기"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        )}
+
         {activeTab === "dashboard" && (
           <DashboardSection
             user={user}
