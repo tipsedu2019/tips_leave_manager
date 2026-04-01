@@ -212,6 +212,7 @@ service cloud.firestore {
       allow create: if isPrivileged() &&
         request.resource.data.id == grantId &&
         isValidCompLeaveGrant(request.resource.data);
+      allow delete: if isPrivileged();
     }
 
     match /notifications/{notificationId} {
@@ -222,6 +223,7 @@ service cloud.firestore {
       allow update: if isOwner(resource.data.userId) &&
         isValidNotification(request.resource.data) &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
+      allow delete: if isPrivileged();
     }
   }
 }
