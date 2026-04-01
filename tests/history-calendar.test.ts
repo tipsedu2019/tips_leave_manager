@@ -4,11 +4,12 @@ import assert from "node:assert/strict"
 import {
   getCalendarDayClassName,
   getMobileCalendarDaySummary,
+  getTodayBadgeClassName,
 } from "../src/lib/history-calendar"
 import { LeaveRequest } from "../src/types"
 
 test("mobile calendar summary stays compact when there are no requests", () => {
-  assert.equal(getMobileCalendarDaySummary([]), "일정 없음")
+  assert.equal(getMobileCalendarDaySummary([]), "")
 })
 
 test("mobile calendar summary shows a single request name", () => {
@@ -62,4 +63,10 @@ test("calendar class names switch by month visibility and today state", () => {
   assert.match(getCalendarDayClassName(true, false), /bg-white/)
   assert.match(getCalendarDayClassName(false, false), /bg-muted\/20/)
   assert.match(getCalendarDayClassName(true, true), /border-black/)
+})
+
+test("today badge classes keep the label compact and horizontal on mobile", () => {
+  assert.match(getTodayBadgeClassName(), /inline-flex/)
+  assert.match(getTodayBadgeClassName(), /whitespace-nowrap/)
+  assert.match(getTodayBadgeClassName(), /text-\[9px\]/)
 })

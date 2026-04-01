@@ -26,6 +26,7 @@ import {
 import {
   getCalendarDayClassName,
   getMobileCalendarDaySummary,
+  getTodayBadgeClassName,
 } from "../lib/history-calendar"
 import { getRequestsForDate } from "../lib/leave-calendar"
 import { formatDate, getLeaveTypeLabel } from "../lib/utils"
@@ -115,6 +116,7 @@ export function HistorySection({
             const visibleItems = getCalendarItems(allRequests, isoDate)
             const totalItems = getRequestsForDate(allRequests, isoDate).length
             const calendarItems = getRequestsForDate(allRequests, isoDate)
+            const mobileSummary = getMobileCalendarDaySummary(calendarItems)
 
             return (
               <div
@@ -124,7 +126,7 @@ export function HistorySection({
                   isToday(day)
                 )}
               >
-                <div className="mb-1.5 flex items-center justify-between sm:mb-2">
+                <div className="mb-1.5 flex flex-col items-start gap-1 sm:mb-2 sm:flex-row sm:items-center sm:justify-between">
                   <span
                     className={`text-xs font-medium sm:text-sm ${
                       isSameMonth(day, visibleMonth)
@@ -135,7 +137,7 @@ export function HistorySection({
                     {format(day, "d")}
                   </span>
                   {isToday(day) && (
-                    <span className="rounded-full bg-black px-2 py-0.5 text-[10px] text-white">
+                    <span className={getTodayBadgeClassName()}>
                       오늘
                     </span>
                   )}
@@ -163,11 +165,15 @@ export function HistorySection({
                   )}
                 </div>
 
-                <div className="sm:hidden">
-                  <div className="rounded-xl bg-muted/50 px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
-                    {getMobileCalendarDaySummary(calendarItems)}
+                {mobileSummary && (
+                  <div className="sm:hidden">
+                    <div className="rounded-xl bg-muted/50 px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
+                      <span className="block truncate whitespace-nowrap">
+                        {mobileSummary}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )
           })}
