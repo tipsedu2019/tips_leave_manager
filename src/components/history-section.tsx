@@ -23,6 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  getCalendarDayClassName,
+  getMobileCalendarDaySummary,
+} from "../lib/history-calendar"
 import { getRequestsForDate } from "../lib/leave-calendar"
 import { formatDate, getLeaveTypeLabel } from "../lib/utils"
 import { LeaveRequest } from "../types"
@@ -96,11 +100,11 @@ export function HistorySection({
       </div>
 
       <div className="rounded-3xl border bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
           {DAY_LABELS.map((label) => (
             <div
               key={label}
-              className="rounded-2xl bg-muted/50 px-3 py-2 text-center text-sm font-medium text-muted-foreground"
+              className="rounded-2xl bg-muted/50 px-1.5 py-2 text-center text-xs font-medium text-muted-foreground sm:px-3 sm:text-sm"
             >
               {label}
             </div>
@@ -110,17 +114,19 @@ export function HistorySection({
             const isoDate = format(day, "yyyy-MM-dd")
             const visibleItems = getCalendarItems(allRequests, isoDate)
             const totalItems = getRequestsForDate(allRequests, isoDate).length
+            const calendarItems = getRequestsForDate(allRequests, isoDate)
 
             return (
               <div
                 key={isoDate}
-                className={`min-h-36 rounded-2xl border p-3 ${
-                  isSameMonth(day, visibleMonth) ? "bg-white" : "bg-muted/20"
-                } ${isToday(day) ? "border-black" : "border-border"}`}
+                className={getCalendarDayClassName(
+                  isSameMonth(day, visibleMonth),
+                  isToday(day)
+                )}
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-1.5 flex items-center justify-between sm:mb-2">
                   <span
-                    className={`text-sm font-medium ${
+                    className={`text-xs font-medium sm:text-sm ${
                       isSameMonth(day, visibleMonth)
                         ? "text-foreground"
                         : "text-muted-foreground"
@@ -135,7 +141,7 @@ export function HistorySection({
                   )}
                 </div>
 
-                <div className="space-y-1">
+                <div className="hidden space-y-1 sm:block">
                   {visibleItems.map((request) => (
                     <div
                       key={`${isoDate}-${request.id}`}
@@ -155,6 +161,12 @@ export function HistorySection({
                       일정 없음
                     </div>
                   )}
+                </div>
+
+                <div className="sm:hidden">
+                  <div className="rounded-xl bg-muted/50 px-1.5 py-2 text-center text-[10px] leading-4 text-muted-foreground">
+                    {getMobileCalendarDaySummary(calendarItems)}
+                  </div>
                 </div>
               </div>
             )
