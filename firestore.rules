@@ -204,7 +204,8 @@ service cloud.firestore {
     }
 
     match /blockedUsers/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow get: if (request.auth != null && request.auth.uid == userId) || isPrivileged();
+      allow list: if isPrivileged();
       allow create, delete: if isPrivileged();
     }
 

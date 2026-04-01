@@ -65,6 +65,7 @@ import {
   getEmailAuthModeDescription,
   getEmailAuthSubmitLabel,
 } from "./lib/email-auth"
+import { filterActiveUsers } from "./lib/admin-users"
 import {
   HALF_DAY_COMP_MESSAGE,
   getLeaveRequestDaysCount,
@@ -143,6 +144,7 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([])
   const [compLeaveGrants, setCompLeaveGrants] = useState<CompLeaveGrant[]>([])
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([])
   const [requestReasons, setRequestReasons] = useState<Record<string, string>>({})
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
@@ -186,6 +188,10 @@ export default function App() {
   )
   const availableTabs = getAvailableAppTabs(canManage)
   const canSetupEmailPassword = canLinkEmailPassword(user?.email, authProviderIds)
+  const visibleUsers = useMemo(
+    () => filterActiveUsers(allUsers, blockedUserIds),
+    [allUsers, blockedUserIds]
+  )
 
   const resetEmailAuthForm = () => {
     setEmailAuthName("")
@@ -394,6 +400,7 @@ export default function App() {
           setRequests([])
           setAllRequests([])
           setAllUsers([])
+          setBlockedUserIds([])
           setAdminLogs([])
           setCompLeaveGrants([])
           setRequestReasons({})
@@ -562,6 +569,17 @@ export default function App() {
       nextUsers.forEach((candidate) => {
         void syncUserIfNeeded(candidate)
       })
+    })
+  }, [canManage])
+
+  useEffect(() => {
+    if (!canManage) {
+      setBlockedUserIds([])
+      return
+    }
+
+    return onSnapshot(collection(db, "blockedUsers"), (snapshot) => {
+      setBlockedUserIds(snapshot.docs.map((blockedUserDoc) => blockedUserDoc.id))
     })
   }, [canManage])
 
@@ -1340,7 +1358,6 @@ export default function App() {
         deletedAt: new Date().toISOString(),
         deletedBy: user.uid,
       })
-      batch.delete(doc(db, "users", member.uid))
 
       requestsSnapshot.docs.forEach((requestDoc) => {
         batch.delete(requestDoc.ref)
@@ -1358,7 +1375,7 @@ export default function App() {
         "DELETE_USER",
         member.uid,
         member.displayName,
-        "직원 계정과 관련 휴가 및 대체휴일 데이터를 삭제하고 접근을 차단함"
+        "직원 계정 접근을 차단하고 휴가 및 대체휴일 데이터를 정리함"
       )
 
       if (selectedUserForGrant?.uid === member.uid) {
@@ -1759,7 +1776,7 @@ export default function App() {
             managedRequests={managedRequests}
             requestReasons={requestReasons}
             adminLogs={adminLogs}
-            allUsers={allUsers}
+            allUsers={visibleUsers}
             isRoleModalOpen={isRoleModalOpen}
             selectedUserForRole={selectedUserForRole}
             onRoleModalChange={(open, member) => {
